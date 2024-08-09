@@ -32,6 +32,8 @@ from getdist import MCSamples, plots
 
 import pickle as pk
 
+from hyperaparameters import hparams
+
 ens = 20 # Turn this up
 path = '/project/ag-weller/Kai.Lehman/gaussian_fields/'
 onlyfiles = [f[:-4] for f in listdir(path) if f[-3:] == 'npy']
@@ -172,12 +174,12 @@ class CCNN(nn.Module):
 
 #=== 2) Set up some things for training ===#
 # Number of times the model will see the full dataset
-epochs = 5
+#epochs = 5
 # The initial learning rate -- an important hyperparameter
-lr = 0.505631
+#lr = 0.505631
 #lr = 0.5
 # The strength of the regularization loss -- we can make this very strong in these easy toy examples
-gamma = 0.030383
+#gamma = 0.030383
 # The number of input channels
 in_channels = 1
 # The number of filters to learn in our model
@@ -198,21 +200,22 @@ prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device='c
 
 
 #set up sbi architecture
-density_estimator_custom = posterior_nn(model="maf", hidden_features=32, num_transforms=3, device='cuda', embedding_net=ccnn)
+density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, device='cuda', embedding_net=ccnn)
 inference = SNPE_C(prior, device='cuda', density_estimator=density_estimator_custom)
 
 # joint training
-density_estimator = inference.append_simulations(theta, imgs).train(learning_rate=1e-4,training_batch_size=20)#,max_num_epochs=5)
+density_estimator = inference.append_simulations(theta, imgs).train(learning_rate=hparams.learning_rate,training_batch_size=hparams.flow_training_batch_size)
 # DANGER DANGER
 ccnn.detach()
 # now deepcopy works:
 test = deepcopy(density_estimator._embedding_net)
 
-with open(f"inference.pkl", "wb") as handle:
-            pk.dump(inference, handle)
-with open(f"density_estimator.pkl", "wb") as handle:
-            pk.dump(deepcopy(density_estimator), handle)
-print('Model saved')
+if hparams.save:
+    with open(f"{hparams.name_model()}_inference.pkl", "wb") as handle:
+                pk.dump(inference, handle)
+    with open(f"{hparams.name_model()}_density_estimator.pkl", "wb") as handle:
+                pk.dump(deepcopy(density_estimator), handle)
+    print('Model saved')
 
 train_loader, val_loader = inference.get_dataloaders(
             #start_idx,
