@@ -4,12 +4,12 @@ import gstools as gs
 from gstools.random import MasterRNG
 
 ens_no = 20
-pixel_x = 100
-pixel_y = 100
+pixel_x = 250
+pixel_y = 250
 x = np.arange(pixel_x)
 y = np.arange(pixel_y)
 sigma2 = np.linspace(1,51,100)
-corr_length = np.linspace(5,23,10)
+corr_length = np.linspace(5,23,100)
 
 
 for i in range(sigma2.shape[0]):
@@ -33,4 +33,4 @@ for i in range(sigma2.shape[0]):
             
         end = time.time()
         print("Generation of %s GRF maps takes %s seconds"%(ens_no, end-start))
-        np.save('/e/ocean1/users/lgong/C3NN_inference/gstools_gaussian_random_fields/grf_%s_maps_%s_by_%s_pixels_var_%s_corrlen_%s.npy'%(ens_no, pixel_x, pixel_y, sigma2[i], corr_length[j]), grf_data)
+        np.save('/project/ag-weller/Kai.Lehman/gaussian_fields/grf_%s_maps_%s_by_%s_pixels_var_%s_corrlen_%s.npy'%(ens_no, pixel_x, pixel_y, sigma2[i], corr_length[j]), grf_data)

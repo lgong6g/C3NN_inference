@@ -26,8 +26,8 @@ class hyperparameters():
 
 hparams = hyperparameters(learning_rate = 1.e-04,    # Learning rate
                           flow_hidden_features = 64,
-                          flow_num_transforms = 2,
-                          flow_training_batch_size = 20,
+                          flow_num_transforms = 3,
+                          flow_training_batch_size = 32,
                           save = True
                           )
 

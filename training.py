@@ -14,7 +14,11 @@ from torch import from_numpy
 
 from tqdm import tqdm
 # Checking if you have a GPU and CUDA set up -- if not, training will take longer by running on the CPU
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+if torch.cuda.is_available():
+    device = 'cuda'
+    torch.cuda.empty_cache()
+else:
+    device = 'cpu'
 # device = 'cpu'
 # Set the plotting style
 #plt.style.use('seaborn-poster')
@@ -32,26 +36,34 @@ from getdist import MCSamples, plots
 
 import pickle as pk
 
-from hyperaparameters import hparams
+from hyperparameters import hparams
 
-ens = 20 # Turn this up
+ens = 5#20 # Turn this up # right now 5*5000 blocks 30GB, so with 80GB GPU should be able to train 5*all
 path = '/project/ag-weller/Kai.Lehman/gaussian_fields/'
 onlyfiles = [f[:-4] for f in listdir(path) if f[-3:] == 'npy']
-onlyfiles_split = np.array([s.split('_') for s in onlyfiles])
-stds = onlyfiles_split[:,8].astype(np.float32)
-corrlens = onlyfiles_split[:,10].astype(np.float32)
+onlyfiles_250_by_250 = np.array([file for file in onlyfiles if '250_by_250' in file])[:5000]
+#onlyfiles_split = np.array([s.split('_') for s in onlyfiles])
+onlyfiles_250_by_250_split = np.array([s.split('_') for s in onlyfiles])[:5000]
+stds = onlyfiles_250_by_250_split[:,8].astype(np.float32)
+corrlens = onlyfiles_250_by_250_split[:,10].astype(np.float32)
 
-imgs = np.zeros((ens*len(onlyfiles),100,100))
-for i, name in enumerate(onlyfiles):
+#imgs = np.zeros((ens*len(onlyfiles),100,100))
+imgs = np.zeros((ens*len(onlyfiles_250_by_250),250,250))
+print('Reading files\n')
+for i, name in enumerate(onlyfiles_250_by_250):
     img_stack = np.load(path+name+'.npy')
-    imgs[i*ens:(i+1)*ens] = img_stack
+    imgs[i*ens:(i+1)*ens] = img_stack[:ens]
+    if i%500 ==0: print(i, 'read')
 
 
-imgs = from_numpy(np.reshape(imgs.astype(np.float32),((ens*len(onlyfiles),1,100,100)))).to('cuda')
+print('Moving to device')
+#imgs = from_numpy(np.reshape(imgs.astype(np.float32),((ens*len(onlyfiles),1,100,100)))).to('cuda')
+imgs = from_numpy(np.reshape(imgs.astype(np.float32),((ens*len(onlyfiles_250_by_250),1,250,250)))).to('cuda')
 
 stds_tiled = (np.ones((ens,len(stds)),dtype=np.float32)*stds).T.flatten()
 corrlens_tiled = (np.ones((ens,len(corrlens)),dtype=np.float32)*corrlens).T.flatten()
 
+print('Building Data Vector')
 # building one theta vector
 theta = from_numpy(np.vstack((stds_tiled,corrlens_tiled)).T).to('cuda')
 print(theta.shape)
@@ -247,7 +259,7 @@ g.triangle_plot([samples], names, title_limit=1, filled=True,
                      marker_args={'c':'black'})
 
 plt.show()
-plt.savefig('fulltest.png')
+plt.savefig('test_250_by_250.png')
 
 # let's do a more statistical test over the entire validation set
 
@@ -281,4 +293,4 @@ for i, axis in enumerate(ax):
     axis.axhline(0,color='black')
     axis.set_xlabel(f'True {names[i]}')
     axis.set_ylabel(f'Predicted - True {names[i]}')
-plt.savefig('violin.png')
+plt.savefig('violin_250_by_250.png')
