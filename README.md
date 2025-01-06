@@ -4,3 +4,5 @@ We introduce the Cosmological Correlator Convolutional Neural Network (C3NN) for
 The model architecture we used in the paper for the binary classification task is shown below ![below](repo_images/ccnn_architecture.png) 
 
 CNN-based N-point moment map generator: The generator part of the architecture performs convolution operations recursively in order to produce moment maps, which we define as ![follows](repo_images/map_generator_equation.png):
+
+`$E = mc^2$`
