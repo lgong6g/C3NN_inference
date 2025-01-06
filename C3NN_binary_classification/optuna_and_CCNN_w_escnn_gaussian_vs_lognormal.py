@@ -33,12 +33,6 @@ from tqdm import tqdm
 grf_example = np.load('/e/ocean1/users/lgong/CCNN/random_fields_data/maps_takahashi_cosmo/gaussian_lognormal_z10_z16/gaussian_data_12180_maps_200_by_200pixels_20_by_20deg_zs10_zs16_gnom_projection.npy')[:5000,1,:,:]
 log_example = np.load('/e/ocean1/users/lgong/CCNN/random_fields_data/maps_takahashi_cosmo/gaussian_lognormal_z10_z16/lognormal_data_12180_maps_200_by_200pixels_20_by_20deg_zs10_zs16_gnom_projection.npy')[:5000,1,:,:]
 
-#log_example_lambda1 = np.load('/e/ocean1/users/lgong/CCNN/random_fields_data/maps_takahashi_cosmo/gaussian_lognormal_z10_z16/lognormal_data_12180_maps_200_by_200pixels_20_by_20deg_zs10_zs16_gnom_projection.npy')[:,0,:,:]
-#log_example_lambda2 = np.load('/e/ocean1/users/lgong/CCNN/random_fields_data/maps_takahashi_cosmo/gaussian_lognormal_z10_z16/lognormal_data_12180_maps_200_by_200pixels_20_by_20deg_zs10_zs16_new_lambda_gnom_projection.npy')[:,0,:,:]
-
-#grf_example = np.load('/e/ocean1/users/lgong/CCNN/random_fields_data/maps_takahashi_cosmo/gaussian_lognormal_z16_only/gaussian_data_17760_maps_120_by_120pixels_4_by_4deg_zs16_gnom_projection.npy')[:2000]
-#log_example = np.load('/e/ocean1/users/lgong/CCNN/random_fields_data/maps_takahashi_cosmo/gaussian_lognormal_z16_only/lognormal_data_17760_maps_120_by_120pixels_4_by_4deg_zs16_gnom_projection.npy')[:2000]
-
 #############################################
 
 ###### Load the GSTools maps with Gaussian (as well as others) covariance model #######
@@ -105,116 +99,6 @@ def make_datasets(train_A, train_B, val_A, val_B, batch_size=256):
 
 train_grf, val_grf = load_srf(5000, 200, grf_example)
 train_log, val_log = load_srf(5000, 200, log_example)
-
-#train_log_lambda1, val_log_lambda1 = load_srf(12180, 200, log_example_lambda1)
-#train_log_lambda2, val_log_lambda2 = load_srf(12180, 200, log_example_lambda2)
-
-#train_mv00, val_mv00 = load_srf(9999, 128, mv00_example)
-#train_mv01, val_mv01 = load_srf(9999, 128, mv01_example)
-
-#train_grf_s, val_grf_s = load_srf(5000, 120, grf_example_s)
-#train_erf_s, val_erf_s = load_srf(10000, 120, erf_example_s)
-#train_grf_l, val_grf_l = load_srf(5000, 120, grf_example_l)
-
-#train_no_IA, val_no_IA = load_srf(11600, 200, kappa_no_IA)
-#train_IA_A4, val_IA_A4 = load_srf(11600, 200, kappa_IA_A4)
-#train_no_IA, val_no_IA = load_multi_channel_data(11600, kappa_no_IA)
-#train_IA_Aamp, val_IA_Aamp = load_multi_channel_data(11600, kappa_IA_Aamp)
-
-#train_t17, val_t17 = load_srf(6264, 200, t17)
-#train_flask, val_flask = load_srf(6264, 200, flask)
-
-"""
-# data transformation functions
-def _vflip(arr):
-    return torch.flip(arr, [-2])
-
-def _hflip(arr):
-    return torch.flip(arr, [-1])
-
-def _rot(arr, k):
-    return torch.rot90(arr, k, [-2, -1])
-
-## Modules used for performing symmetrization
-
-class SymSlice(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    #Given an array of shape [B, ..., W, H], produces an array of shape [B, 8, ..., W, H]
-    of all symmetry transformations of the input, then folds the symmetry-equivalent versions
-    into the batch dimension to make an array of shape [B * 8, ..., W, H]
-          
-    def forward(self, x):
-        batch_size = x.shape[0]
-        sym_x = torch.empty(batch_size, 8, *x.shape[1:]).to(x)
-        sym_x[:, 0] = x
-        sym_x[:, 1] = _hflip(x)
-        sym_x[:, 2] = _vflip(x)
-        sym_x[:, 3] = _rot(x, 1)
-        sym_x[:, 4] = _rot(x, 2)
-        sym_x[:, 5] = _rot(x, 3)
-        sym_x[:, 6] = _rot(_hflip(x), 1)
-        sym_x[:, 7] = _rot(_vflip(x), 1)
-        x = sym_x.reshape(batch_size * 8, *x.shape[1:])
-        return x
-    
-
-    # rotation over k*90 degree k belongs to {0,1,2,3}
-    def forward(self, x):
-        batch_size = x.shape[0]
-        sym_x = torch.empty(batch_size, 4, *x.shape[1:]).to(x)
-        sym_x[:, 0] = x
-        sym_x[:, 1] = _rot(x, 1)
-        sym_x[:, 2] = _rot(x, 2)
-        sym_x[:, 3] = _rot(x, 3)
-        x = sym_x.reshape(batch_size * 4, *x.shape[1:])
-        return x
-
-class SymPool(nn.Module):
-    
-    def __init__(self):
-        super().__init__()
-    
-     
-    #Performs inverse symmetry operations to bring feature maps back in line, then
-    averages activations pixelwise. Must operate on a feature map that has been through
-    SymSlice.
-    
-    def __init__(self, reduction='mean'):
-        if reduction == 'mean':
-            self.reduction = lambda x: torch.sum(x, dim=1)
-        elif reduction == 'max':
-            self.reduction = lambda x: torch.max(x, dim=1)[0]
-        else:
-            raise ValueError("Unknown reduction method passed to SymPool")
-        super().__init__()
-    
-    def forward(self, x):
-        inv_x = torch.empty(x.shape[0] // 8, 8, *x.shape[1:], device=x.device)
-        x = x.reshape(x.shape[0] // 8, 8, *x.shape[1:])
-
-        inv_x[:, 0] = x[:, 0]
-        inv_x[:, 1] = _hflip(x[:, 1])
-        inv_x[:, 2] = _vflip(x[:, 2])
-        inv_x[:, 3] = _rot(x[:, 3], -1)
-        inv_x[:, 4] = _rot(x[:, 4], -2)
-        inv_x[:, 5] = _rot(x[:, 5], -3)
-        inv_x[:, 6] = _hflip(_rot(x[:, 6], -1))
-        inv_x[:, 7] = _vflip(_rot(x[:, 7], -1))
-        return torch.sum(inv_x, dim=1)/8
-
-    # inverse rotation over k*90 degree k belongs to {0,1,2,3}
-    def forward(self, x):
-        inv_x = torch.empty(x.shape[0] // 4, 4, *x.shape[1:], device=x.device)
-        x = x.reshape(x.shape[0] // 4, 4, *x.shape[1:])
-
-        inv_x[:, 0] = x[:, 0]
-        inv_x[:, 1] = _rot(x[:, 1], -1)
-        inv_x[:, 2] = _rot(x[:, 2], -2)
-        inv_x[:, 3] = _rot(x[:, 3], -3)
-        return torch.sum(inv_x, dim=1)/4
-"""
 
 # Set up the continuous planar rotation group SO(2)
 bandlimit = 6
