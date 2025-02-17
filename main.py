@@ -37,7 +37,7 @@ def main(hparams, verbose=True):
     inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
 
     # joint training
-    density_estimator = inference.append_simulations(training_parameters[:10], training_data[:10]).train(learning_rate=hparams.learning_rate,training_batch_size=hparams.flow_training_batch_size,max_num_epochs=2)
+    density_estimator = inference.append_simulations(training_parameters, training_data).train(learning_rate=hparams.learning_rate,training_batch_size=hparams.flow_training_batch_size,max_num_epochs=5000)
 
     val_loss = inference.summary['best_validation_log_prob']
 

@@ -59,10 +59,10 @@ if __name__ == "__main__":
     # Optuna parameters
     storage = "sqlite:///"+os.getcwd()+"/optuna_scan"
     study_name = "hparam_scan"
-    n_trials   = 2
+    n_trials   = 50
 
     # Define sampler and start optimization
-    sampler = optuna.samplers.TPESampler(seed=0,n_startup_trials=50)#10)
+    sampler = optuna.samplers.TPESampler(seed=0,n_startup_trials=10)
     study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
     study.optimize(objective, n_trials, gc_after_trial=True)
 
