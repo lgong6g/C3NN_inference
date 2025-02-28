@@ -7,9 +7,14 @@ import os
 from main import *
 from hyperparameters import hparams
 
-torch.manual_seed(0)
-random.seed(0)
-np.random.seed(0)
+#torch.manual_seed(0)
+#random.seed(0)
+#np.random.seed(0)
+
+# Make runs repeatable
+random_seed = 1750
+torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+torch.manual_seed(random_seed)
 
 # Objective function to minimize
 def objective(trial):
@@ -19,8 +24,9 @@ def objective(trial):
     flow_num_transforms = trial.suggest_int("flow_num_transforms", 2, 8)
     flow_hidden_features = trial.suggest_categorical("flow_hidden_features", [32, 64, 128, 256, 512])
     flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [5, 10, 20, 30, 40, 50])
-    num_filts = trial.suggest_int("num_filts", 1, 5) 
-    filter_size = trial.suggest_categorical("filter_size", [15, 25, 35, 45, 55])
+    #num_filts = trial.suggest_int("num_filts", 1, 5) 
+    #filter_size = trial.suggest_categorical("filter_size", [15, 25, 35, 45, 55])
+    filter_size = trial.suggest_int("filter_size", 23, 47, 2)
 
     # Some verbose
     print('\nTrial number: {}'.format(trial.number))
@@ -28,7 +34,7 @@ def objective(trial):
     print('flow_num_transforms:  {}'.format(flow_num_transforms))
     print('flow_hidden_features:  {}'.format(flow_hidden_features))
     print('flow_training_batch_size:  {}'.format(flow_training_batch_size))
-    print('num_filts:  {}'.format(num_filts))
+    #print('num_filts:  {}'.format(num_filts))
     print('filter_size:  {}'.format(filter_size))
 
     # Hyperparameters to be optimized
@@ -36,7 +42,7 @@ def objective(trial):
     hparams.flow_num_transforms = flow_num_transforms
     hparams.flow_hidden_features = flow_hidden_features
     hparams.flow_training_batch_size = flow_training_batch_size
-    hparams.num_filts = num_filts
+    #hparams.num_filts = num_filts
     hparams.filter_size = filter_size
 
 
@@ -57,12 +63,14 @@ if __name__ == "__main__":
 
 
     # Optuna parameters
-    storage = "sqlite:///"+os.getcwd()+"/optuna_scan"
+    storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter1_order4"
+    #storage = "optuna_scan"
     study_name = "hparam_scan"
-    n_trials   = 50
+    n_trials = 50
 
     # Define sampler and start optimization
-    sampler = optuna.samplers.TPESampler(seed=0,n_startup_trials=10)
+    #sampler = optuna.samplers.TPESampler(seed=0, n_startup_trials=10)
+    sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=10)
     study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
     study.optimize(objective, n_trials, gc_after_trial=True)
 
