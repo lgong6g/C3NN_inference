@@ -16,9 +16,10 @@ import time, datetime
 
 def main(hparams, verbose=True):
 
-    torch.manual_seed(0)
-    random.seed(0)
-    np.random.seed(0)
+    # Make runs repeatable
+    random_seed = 1750
+    torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+    torch.manual_seed(random_seed)
 
     # load data
     training_parameters, training_data = load_data(hparams)
