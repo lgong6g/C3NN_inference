@@ -23,6 +23,7 @@ def objective(trial):
     flow_learning_rate = trial.suggest_float("flow_learning_rate", 1e-6, 1e-3, log=True)
     flow_num_transforms = trial.suggest_int("flow_num_transforms", 2, 8)
     flow_hidden_features = trial.suggest_categorical("flow_hidden_features", [32, 64, 128, 256, 512])
+    num_blocks = trial.suggest_int("num_blocks", 2, 6)
     flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [5, 10, 20, 30, 40, 50])
     #num_filts = trial.suggest_int("num_filts", 1, 5) 
     #filter_size = trial.suggest_categorical("filter_size", [15, 25, 35, 45, 55])
@@ -33,6 +34,7 @@ def objective(trial):
     print('flow_learning_rate:  {}'.format(flow_learning_rate))
     print('flow_num_transforms:  {}'.format(flow_num_transforms))
     print('flow_hidden_features:  {}'.format(flow_hidden_features))
+    print('flow_num_blocks:  {}'.format(num_blocks))
     print('flow_training_batch_size:  {}'.format(flow_training_batch_size))
     #print('num_filts:  {}'.format(num_filts))
     print('filter_size:  {}'.format(filter_size))
@@ -41,6 +43,7 @@ def objective(trial):
     hparams.flow_learning_rate = flow_learning_rate
     hparams.flow_num_transforms = flow_num_transforms
     hparams.flow_hidden_features = flow_hidden_features
+    hparams.num_blocks = num_blocks
     hparams.flow_training_batch_size = flow_training_batch_size
     #hparams.num_filts = num_filts
     hparams.filter_size = filter_size

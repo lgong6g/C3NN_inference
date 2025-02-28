@@ -34,7 +34,7 @@ def main(hparams, verbose=True):
     prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
 
     #set up sbi architecture
-    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, device=hparams.device, embedding_net=c3nn)
+    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=c3nn)
     inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
 
     # joint training

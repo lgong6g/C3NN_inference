@@ -2,13 +2,14 @@
 
 
 class hyperparameters():
-    def __init__(self, learning_rate,flow_hidden_features = 128, flow_num_transforms = 5, flow_training_batch_size = 8, 
+    def __init__(self, learning_rate,flow_hidden_features = 128, num_blocks = 4, flow_num_transforms = 5, flow_training_batch_size = 8,
                  in_channels = 4, num_filts = 1, filter_size = 35, order = 4, save=True, device='cuda'):
 
         # Learning rate
         self.learning_rate = learning_rate
         # flow hparams        
         self.flow_hidden_features = flow_hidden_features
+        self.num_blocks = num_blocks
         self.flow_num_transforms = flow_num_transforms
         self.flow_training_batch_size = flow_training_batch_size
         # C3NN hparams
@@ -28,12 +29,13 @@ class hyperparameters():
     def name_model(self):
         # TODO: include c3nn params
         return "lr_{:.2e}_features_{:d}_transforms_{:d}_batchsize_{:d}".format(self.learning_rate, self.flow_hidden_features, self.flow_num_transforms, self.flow_training_batch_size)
-
+        return "lr_{:.2e}_features_{:d}_blocks_{:d}_transforms_{:d}_batchsize_{:d}".format(self.learning_rate, self.flow_hidden_features, self.num_blocks, self.flow_num_transforms, self.flow_training_batch_size)
 
 #--- HYPERPARAMETER CHOICES ---#
 
 hparams = hyperparameters(learning_rate = 1e-4,    # Learning rate
                           flow_hidden_features = 64,
+                          num_blocks = 2,
                           flow_num_transforms = 3,
                           flow_training_batch_size = 32,
                           in_channels = 4, # not optimzed
