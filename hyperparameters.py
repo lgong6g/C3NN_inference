@@ -40,7 +40,7 @@ hparams = hyperparameters(learning_rate = 1.e-04,    # Learning rate
                           num_filts = 1, # The number of filters to learn in our model
                           filter_size = 35, # The spatial length of the filters
                           order = 2, # The highest order of correlation measured, not optimized
-                          save = True,
+                          save = True,  #TODO: not yet implemented
                           device = 'cpu'
                           )
 

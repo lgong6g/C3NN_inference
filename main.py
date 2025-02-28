@@ -21,9 +21,11 @@ def main(hparams, verbose=True):
     np.random.seed(0)
 
     # load data
+    print('loading data...')
     training_parameters, training_data = load_data(hparams)
 
     # instatiate model, optimizer and loss function
+    print('instantiating model...')
     c3nn = C3NN(hparams)
     #c3nn = C3NN(in_channels=in_channels, num_filts=num_filts, filter_size=filter_size, order=order, absbeta=False).to(device='cuda')
 
