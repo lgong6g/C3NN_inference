@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import from_numpy
+from sklearn.model_selection import train_test_split
 
 from tqdm import tqdm
 # Checking if you have a GPU and CUDA set up -- if not, training will take longer by running on the CPU
@@ -38,35 +39,52 @@ import pickle as pk
 
 from hyperparameters import hparams
 
-ens = 5#20 # Turn this up # right now 5*5000 blocks 30GB, so with 80GB GPU should be able to train 5*all
+ens = 20 # Turn this up # right now 5*5000 blocks 30GB, so with 80GB GPU should be able to train 5*all
+# 20*2000 blocks 45GB
 path = '/project/ag-weller/Kai.Lehman/gaussian_fields/'
 onlyfiles = [f[:-4] for f in listdir(path) if f[-3:] == 'npy']
-onlyfiles_250_by_250 = np.array([file for file in onlyfiles if '250_by_250' in file])[:5000]
+onlyfiles_250_by_250 = np.array([file for file in onlyfiles if '250_by_250' in file])
+
+# subsample
+# 20x2000 takes up 45755MiB
+#print(np.shape(onlyfiles_250_by_250))
+onlyfiles_250_by_250 = np.random.choice(onlyfiles_250_by_250, 2000, replace=False)
+
+
 #onlyfiles_split = np.array([s.split('_') for s in onlyfiles])
-onlyfiles_250_by_250_split = np.array([s.split('_') for s in onlyfiles])[:5000]
+onlyfiles_250_by_250_split = np.array([s.split('_') for s in onlyfiles_250_by_250])
+
+
 stds = onlyfiles_250_by_250_split[:,8].astype(np.float32)
 corrlens = onlyfiles_250_by_250_split[:,10].astype(np.float32)
 
 #imgs = np.zeros((ens*len(onlyfiles),100,100))
-imgs = np.zeros((ens*len(onlyfiles_250_by_250),250,250))
-print('Reading files\n')
+#imgs = np.zeros((ens*len(onlyfiles_250_by_250),250,250))
+imgs = np.zeros((len(onlyfiles_250_by_250),ens,250,250),dtype='float32')
 for i, name in enumerate(onlyfiles_250_by_250):
     img_stack = np.load(path+name+'.npy')
-    imgs[i*ens:(i+1)*ens] = img_stack[:ens]
-    if i%500 ==0: print(i, 'read')
+    #imgs[i*ens:(i+1)*ens] = img_stack[:ens]
+    imgs[i] = np.asarray(img_stack,dtype='float32')
+    if i%500==0: print(i)
 
+thetas = np.concatenate((np.atleast_2d(stds),np.atleast_2d(corrlens)),axis=0).T
 
-print('Moving to device')
-#imgs = from_numpy(np.reshape(imgs.astype(np.float32),((ens*len(onlyfiles),1,100,100)))).to('cuda')
-imgs = from_numpy(np.reshape(imgs.astype(np.float32),((ens*len(onlyfiles_250_by_250),1,250,250)))).to('cuda')
+# train_test_split
+X_train, X_test, y_train, y_test = train_test_split(imgs, thetas, test_size=0.1, random_state=42)
+#X_val, X_test, y_val, y_test = train_test_split(X_test, y_test, test_size=0.5, random_state=42)
 
-stds_tiled = (np.ones((ens,len(stds)),dtype=np.float32)*stds).T.flatten()
-corrlens_tiled = (np.ones((ens,len(corrlens)),dtype=np.float32)*corrlens).T.flatten()
+# get val indices for training before unsqueezing
+n_training_examples = len(X_train)
 
-print('Building Data Vector')
-# building one theta vector
-theta = from_numpy(np.vstack((stds_tiled,corrlens_tiled)).T).to('cuda')
-print(theta.shape)
+# now unravel
+X_train = from_numpy(X_train.reshape(len(X_train)*ens,1,250,250)).to(device)
+#X_val = from_numpy(X_val.reshape(len(X_val)*ens,1,250,250)).to(device)
+X_test = from_numpy(X_test.reshape(len(X_test)*ens,1,250,250)).to(device)
+
+y_train_tiled = from_numpy(np.repeat(y_train,repeats=ens,axis=0)).to(device)
+#y_val_tiled = from_numpy(np.repeat(y_val,repeats=ens,axis=0)).to(device)
+y_test_tiled = from_numpy(np.repeat(y_test,repeats=ens,axis=0)).to(device)
+
 
 # set up C3NN
 bandlimit = 6
@@ -195,9 +213,9 @@ class CCNN(nn.Module):
 # The number of input channels
 in_channels = 1
 # The number of filters to learn in our model
-num_filts = 1
+num_filts = 2
 # The spatial length of the filters
-filter_size = 11
+filter_size = 101
 # The highest order of correlation measured
 order = 2
 
@@ -215,17 +233,31 @@ prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device='c
 density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, device='cuda', embedding_net=ccnn)
 inference = SNPE_C(prior, device='cuda', density_estimator=density_estimator_custom)
 
+
+# set inference.val_indices here
+permuted_indices = torch.randperm(n_training_examples)
+#unsqueeze
+# TODO: add corrrect slicing herre
+permuted_indices_unravel = np.repeat(permuted_indices*ens)
+
+inference.train_indices, inference.val_indices = (
+    permuted_indices[:num_training_examples],
+    permuted_indices[num_training_examples:],
+    )
+# then set resume trainig = False
+
 # joint training
-density_estimator = inference.append_simulations(theta, imgs).train(learning_rate=hparams.learning_rate,training_batch_size=hparams.flow_training_batch_size)
+density_estimator = inference.append_simulations(y_train_tiled, X_train).train(learning_rate=hparams.learning_rate,training_batch_size=hparams.flow_training_batch_size)#,max_num_epochs=3)
 # DANGER DANGER
 ccnn.detach()
 # now deepcopy works:
 test = deepcopy(density_estimator._embedding_net)
 
 if hparams.save:
-    with open(f"{hparams.name_model()}_inference.pkl", "wb") as handle:
+    p = '/project/ag-weller/Kai.Lehman/C3NN_Models/'
+    with open(p+f"{hparams.name_model()}_2xfilter101_order_2_inference.pkl", "wb") as handle:
                 pk.dump(inference, handle)
-    with open(f"{hparams.name_model()}_density_estimator.pkl", "wb") as handle:
+    with open(p+f"{hparams.name_model()}_2xfilter101_order_2_density_estimator.pkl", "wb") as handle:
                 pk.dump(deepcopy(density_estimator), handle)
     print('Model saved')
 
@@ -259,10 +291,11 @@ g.triangle_plot([samples], names, title_limit=1, filled=True,
                      marker_args={'c':'black'})
 
 plt.show()
-plt.savefig('test_250_by_250.png')
+plt.savefig('test_2000x20_2xfilter101_order_2.png')
 
 # let's do a more statistical test over the entire validation set
 
+'''
 no_val_sims = len(val_loader)
 posterior_samples_all = np.zeros((no_val_sims,100000,2))
 params = np.zeros((no_val_sims,2))
@@ -272,6 +305,7 @@ for i, (param, observation, _) in enumerate(val_loader):
     posterior_samples_all[i] = posterior.sample((100000,), x=observation).cpu()
     if i%10 == 0:
         print(i)
+'''
 
 no_val_sims = 100
 posterior_samples_all = np.zeros((no_val_sims,100000,2))
@@ -293,4 +327,4 @@ for i, axis in enumerate(ax):
     axis.axhline(0,color='black')
     axis.set_xlabel(f'True {names[i]}')
     axis.set_ylabel(f'Predicted - True {names[i]}')
-plt.savefig('violin_250_by_250.png')
+plt.savefig('violin_2000x20_2xfilter101_order_2.png')
