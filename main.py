@@ -16,9 +16,10 @@ import time, datetime
 
 def main(hparams, verbose=True):
 
-    torch.manual_seed(0)
-    random.seed(0)
-    np.random.seed(0)
+    # Make runs repeatable
+    random_seed = 1750
+    torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+    torch.manual_seed(random_seed)
 
     # load data
     print('loading data...')
@@ -35,7 +36,7 @@ def main(hparams, verbose=True):
     prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
 
     #set up sbi architecture
-    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, device=hparams.device, embedding_net=c3nn)
+    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=c3nn)
     inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
 
     # joint training
