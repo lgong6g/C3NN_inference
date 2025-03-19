@@ -1,4 +1,8 @@
+import sys
+sys.path.append('./src')
+from load_data import load_data
 import optuna
+import pickle
 import numpy as np
 import torch
 import random
@@ -13,21 +17,26 @@ from hyperparameters import hparams
 
 # Make runs repeatable
 random_seed = 1750
-torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
 torch.manual_seed(random_seed)
+#torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+
+# load data
+print('loading data...')
+training_parameters, training_data = load_data(hparams)
 
 # Objective function to minimize
 def objective(trial):
 
     # Hyperparameters to optimize
-    flow_learning_rate = trial.suggest_float("flow_learning_rate", 1e-6, 1e-3, log=True)
+    flow_learning_rate = trial.suggest_float("flow_learning_rate", 1e-5, 1e-2, log=True)
     flow_num_transforms = trial.suggest_int("flow_num_transforms", 2, 8)
     flow_hidden_features = trial.suggest_categorical("flow_hidden_features", [32, 64, 128, 256, 512])
     num_blocks = trial.suggest_int("num_blocks", 2, 6)
-    flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [5, 10, 20, 30, 40, 50])
+    #flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [10, 20, 30, 40, 50])
+    flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [16, 32, 64, 128])
     #num_filts = trial.suggest_int("num_filts", 1, 5) 
     #filter_size = trial.suggest_categorical("filter_size", [15, 25, 35, 45, 55])
-    filter_size = trial.suggest_int("filter_size", 23, 47, 2)
+    filter_size = trial.suggest_int("filter_size", 23, 47, step=2)
 
     # Some verbose
     print('\nTrial number: {}'.format(trial.number))
@@ -50,7 +59,7 @@ def objective(trial):
 
 
     # Run main routine
-    val_prob = main(hparams, verbose = True)
+    val_prob = main(hparams, training_parameters, training_data, verbose = True)
 
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
@@ -64,19 +73,27 @@ if __name__ == "__main__":
 
     time_ini = time.time()
 
-
     # Optuna parameters
-    storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter1_order4"
+    #storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter1_order2_fast"
     #storage = "optuna_scan"
-    study_name = "hparam_scan"
-    n_trials = 50
+    #study_name = "hparam_scan_fast"
+    n_trials = 20
+
+    # Load the saved study object and continue to tune hyperparameters
+    with open('optuna_scan_filter1_order2.pickle', 'rb') as f:
+        study = pickle.load(f)
 
     # Define sampler and start optimization
-    #sampler = optuna.samplers.TPESampler(seed=0, n_startup_trials=10)
-    sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=10)
-    study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
+    #sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=10)
+    sampler = optuna.samplers.TPESampler(seed=1750) # Use this line for loading the existing study and continue the tuning
+    
+    #study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
+    #study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
     study.optimize(objective, n_trials, gc_after_trial=True)
 
+    with open('optuna_scan_filter1_order2.pickle', 'wb') as f:
+        pickle.dump(study, f)
+        
     # Print info for best trial
     print("Best trial:")
     trial = study.best_trial

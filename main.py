@@ -14,20 +14,20 @@ import time, datetime
 
 
 
-def main(hparams, verbose=True):
+def main(hparams, training_parameters, training_data, verbose=True):
 
     # Make runs repeatable
     random_seed = 1750
-    torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
     torch.manual_seed(random_seed)
+    #torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
 
     # load data
-    print('loading data...')
-    training_parameters, training_data = load_data(hparams)
+    #print('loading data...')
+    #training_parameters, training_data = load_data(hparams)
 
     # instatiate model, optimizer and loss function
     print('instantiating model...')
-    c3nn = C3NN(hparams)
+    c3nn = C3NN(hparams).to(device='cuda')
     #c3nn = C3NN(in_channels=in_channels, num_filts=num_filts, filter_size=filter_size, order=order, absbeta=False).to(device='cuda')
 
     # Set up prior for sbi
@@ -40,7 +40,7 @@ def main(hparams, verbose=True):
     inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
 
     # joint training
-    density_estimator = inference.append_simulations(training_parameters, training_data).train(learning_rate=hparams.learning_rate,training_batch_size=hparams.flow_training_batch_size,max_num_epochs=5000)
+    density_estimator = inference.append_simulations(training_parameters, training_data).train(learning_rate=hparams.learning_rate, training_batch_size=hparams.flow_training_batch_size, max_num_epochs=300)
 
     val_loss = inference.summary['best_validation_log_prob']
 
@@ -51,7 +51,7 @@ def main(hparams, verbose=True):
     if verbose:
         print(val_loss)
 
-    return(val_loss)
+    return val_loss
 
 
 

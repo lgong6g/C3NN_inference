@@ -31,18 +31,11 @@ class NonlinearConv(nn.Module):
         # Initialize the escnn filter
         feat_type_in = escnn.nn.FieldType(gspace, self.in_channels*[gspace.trivial_repr])
         feat_type_out = escnn.nn.FieldType(gspace, self.num_filts*[gspace.trivial_repr])
-        # THIS LAYER KILLS DEEPCOPY
         self.conv = escnn.nn.R2Conv(in_type=feat_type_in, out_type=feat_type_out, bias=False, kernel_size=self.filter_size) 
-        
-        # to enable deepcopy
-        self.detached = False
         
     def forward(self, x):
         # We will work with strictly positive filters for easier interpretation!
-        if self.detached == False:
-            self.abs_filt = self.conv.expand_parameters()[0].abs()
-        elif self.detached == True:
-            pass
+        self.abs_filt = self.conv.expand_parameters()[0].abs()
         
         # Convolutions of powers of the input with powers of the absolute valued filter
         conv_powers = [F.conv2d(x ** k, self.abs_filt ** k, stride=1, padding=int((self.filter_size-1)/2.0)) for k in range(1, self.order + 1)]
@@ -63,12 +56,6 @@ class NonlinearConv(nn.Module):
         #return torch.cat(corrs[1:], dim=-3)
         return torch.cat(corrs[1:], dim=-3)
 
-    def _detach(self):
-        del self.conv
-        self.abs_filt = self.abs_filt.detach()
-        self.detached = True
-
-
 """ Does a simple average over the last two dimensions of the input."""
 class Mean2d(nn.Module):
     def __init__(self):
@@ -81,7 +68,7 @@ class Mean2d(nn.Module):
 """ The full CCNN is Input -> NonlinearConv -> Spatial Avg -> BatchNorm -> Logistic. The way it is constructed
     here assumes a binary classification task, but this can be extended to the multiclass case."""
 class C3NN(nn.Module):
-    def __init__(self, hparams, absbeta=False, slice=False, pool=False):
+    def __init__(self, hparams, absbeta=False):
         super().__init__()
         self.in_channels = hparams.in_channels
         self.num_filts = hparams.num_filts
@@ -96,13 +83,10 @@ class C3NN(nn.Module):
         # This may help the numerical stability of inference in the 2nd part
         self.bn = nn.BatchNorm1d(hparams.num_filts * hparams.order, affine=True, eps=3.185289e-35, dtype=torch.float32)
         self.parallel = torch.vmap(self.forward_single, in_dims=0, out_dims=0)
-        #troubleshooting
-        #self.conv = Conv2d(1,1,11)
     
     def forward_single(self, x, chop=True):    
         
         x = self.corr_conv(x)
-        #x = self.conv(x)
         x = self.spatial_mean(x)
         if chop == False:
             x = self.bn(x)
@@ -110,7 +94,3 @@ class C3NN(nn.Module):
     
     def forward(self, x):
         return torch.mean(self.parallel(x), 1)
-
-
-    def detach(self):
-        self.corr_conv._detach()
