@@ -1,5 +1,7 @@
 *.png
 *.pdf
+# Ignore all Models by default
+Models/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
