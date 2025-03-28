@@ -11,18 +11,15 @@ import os
 from main import *
 from hyperparameters import hparams
 
-#torch.manual_seed(0)
-#random.seed(0)
-#np.random.seed(0)
-
-# choose database sqlite or pickle
-#database = 'pickle'
-database = 'sqlite'
 
 # Make runs repeatable
 random_seed = 1750
 torch.manual_seed(random_seed)
 #torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+
+# choose database sqlite or pickle
+#database = 'pickle'
+database = 'sqlite'
 
 # load data
 print('loading data...')
@@ -77,6 +74,7 @@ if __name__ == "__main__":
 
     time_ini = time.time()
 
+    #### Hypertuning using sqlite or pickle data base ####
     # Optuna parameters
     n_trials = 100
 

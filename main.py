@@ -32,8 +32,9 @@ def main(hparams, training_parameters, training_data, verbose=True):
     #c3nn = C3NN(in_channels=in_channels, num_filts=num_filts, filter_size=filter_size, order=order, absbeta=False).to(device='cuda')
 
     # Set up prior for sbi
-    lower = np.array([0.1, 0.4])
-    upper = np.array([0.5, 1.4])
+    # The param here are Om, sigma8, w0, ns, Ob, H0, bary_Mc, bary_nu
+    lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
+    upper = np.array([0.5, 1.4, -0.33, 1.07, 0.06, 82.0, 15.0, 2.0])
     prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
 
     #set up sbi architecture
