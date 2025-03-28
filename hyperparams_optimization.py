@@ -11,10 +11,6 @@ import os
 from main import *
 from hyperparameters import hparams
 
-#torch.manual_seed(0)
-#random.seed(0)
-#np.random.seed(0)
-
 # Make runs repeatable
 random_seed = 1750
 torch.manual_seed(random_seed)
@@ -73,25 +69,30 @@ if __name__ == "__main__":
 
     time_ini = time.time()
 
+    n_trials = 100
+
+    #### Hypertuning using sqlite data base ####
     # Optuna parameters
     #storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter1_order2_fast"
     #storage = "optuna_scan"
     #study_name = "hparam_scan_fast"
-    n_trials = 20
 
+    #sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=20)
+    #study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
+    #study.optimize(objective, n_trials, gc_after_trial=True)
+    ##############################################
+    
+    #### Hypertuning using pickle ####
     # Load the saved study object and continue to tune hyperparameters
-    with open('optuna_scan_filter1_order2.pickle', 'rb') as f:
-        study = pickle.load(f)
+    #with open('optuna_scan_filter1_order2_8dim_param.pickle', 'rb') as f:
+    #    study = pickle.load(f)
 
     # Define sampler and start optimization
-    #sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=10)
-    sampler = optuna.samplers.TPESampler(seed=1750) # Use this line for loading the existing study and continue the tuning
-    
-    #study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
-    #study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
+    sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=20) 
+    study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
     study.optimize(objective, n_trials, gc_after_trial=True)
 
-    with open('optuna_scan_filter1_order2.pickle', 'wb') as f:
+    with open('optuna_scan_filter1_order2_8dim_param.pickle', 'wb') as f:
         pickle.dump(study, f)
         
     # Print info for best trial
