@@ -11,6 +11,7 @@ import random
 from torch import from_numpy
 import torch
 import time, datetime
+import cloudpickle as cpk
 
 
 
@@ -47,6 +48,14 @@ def main(hparams, training_parameters, training_data, verbose=True):
     # main training routine; trains until early stopping is reached
     #train_loss, val_loss = training_routine(model, optimizer, loss_fn, train_loader, val_loader, hparams, device=device)
 
+    if hparams.save:
+        with open(f"Models/{hparams.name_model()}_inference.pkl", "wb") as handle:
+            cpk.dump(inference, handle)
+        with open(f"Models/{hparams.name_model()}_density_estimator.pkl", "wb") as handle:
+            cpk.dump(density_estimator, handle)
+        print('Model saved')
+    else:
+        print('Not saving')
 
     if verbose:
         print(val_loss)

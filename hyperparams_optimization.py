@@ -15,6 +15,10 @@ from hyperparameters import hparams
 #random.seed(0)
 #np.random.seed(0)
 
+# choose database sqlite or pickle
+#database = 'pickle'
+database = 'sqlite'
+
 # Make runs repeatable
 random_seed = 1750
 torch.manual_seed(random_seed)
@@ -74,25 +78,37 @@ if __name__ == "__main__":
     time_ini = time.time()
 
     # Optuna parameters
-    #storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter1_order2_fast"
-    #storage = "optuna_scan"
-    #study_name = "hparam_scan_fast"
-    n_trials = 20
+    n_trials = 100
 
-    # Load the saved study object and continue to tune hyperparameters
-    with open('optuna_scan_filter1_order2.pickle', 'rb') as f:
-        study = pickle.load(f)
+    if database == 'pickle':
 
-    # Define sampler and start optimization
-    #sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=10)
-    sampler = optuna.samplers.TPESampler(seed=1750) # Use this line for loading the existing study and continue the tuning
+        # Load the saved study object and continue to tune hyperparameters
+        try:
+            with open('optuna_test.pickle', 'rb') as f:
+                study = pickle.load(f)
+        except:
+            print('No existing study found. Creating new study.')
+            # Define sampler and start optimization
+            #sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=10)
+            sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=20) # Use this line for loading the existing study and continue the tuning
+            study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
+
+    elif database == 'sqlite':
+        storage = "sqlite:///"+os.getcwd()+"/optuna_testsqlite"
+        study_name = "optuna_testsqlite"
+        sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=20) # Use this line for loading the existing study and continue the tuning
+        study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
+
+    else:
+        raise NotImplementedError("Database type not implemented.")
+
+
     
-    #study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
-    #study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
     study.optimize(objective, n_trials, gc_after_trial=True)
 
-    with open('optuna_scan_filter1_order2.pickle', 'wb') as f:
-        pickle.dump(study, f)
+    if database == 'pickle':
+        with open('optuna_test.pickle', 'wb') as f:
+            pickle.dump(study, f)
         
     # Print info for best trial
     print("Best trial:")
