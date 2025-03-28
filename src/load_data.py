@@ -9,7 +9,7 @@ def load_data(hparams):
     #training_data = torch.tensor(training_data, dtype=torch.float32)
 
     training_parameters = np.load('CosmoGrid_params.npz').files
-    param_names = ['Om', 'sigma8']
+    param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
     training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][:1250] for par in param_names]).T
     training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
     #training_parameters = torch.tensor(training_parameters, dtype=torch.float32)
