@@ -39,9 +39,9 @@ hparams = hyperparameters(learning_rate = 0.00017544532449604214,    # Learning 
                           flow_num_transforms = 3,
                           flow_training_batch_size = 8,
                           in_channels = 4, # not optimzed
-                          num_filts = 1, # The number of filters to learn in our model
+                          num_filts = 25, # The number of filters to learn in our model
                           filter_size = 33, # The spatial length of the filters
-                          order = 2, # The highest order of correlation measured, not optimized
+                          order = 5, # The highest order of correlation measured, not optimized
                           save = True,  #TODO: not yet implemented
                           device = 'cuda'
                           )
