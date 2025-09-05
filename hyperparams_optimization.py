@@ -1,3 +1,6 @@
+import numexpr
+print("Max threads allowed:", numexpr.detect_number_of_cores())
+print("Threads actually used:", numexpr.get_num_threads())
 import sys
 sys.path.append('./src')
 from load_data import load_data
@@ -76,7 +79,7 @@ if __name__ == "__main__":
 
     #### Hypertuning using sqlite or pickle data base ####
     # Optuna parameters
-    n_trials = 100
+    n_trials = 20
 
     if database == 'pickle':
 
@@ -92,8 +95,8 @@ if __name__ == "__main__":
             study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
 
     elif database == 'sqlite':
-        storage = "sqlite:///"+os.getcwd()+"/optuna_testsqlite"
-        study_name = "optuna_testsqlite"
+        storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter3_order4_deterministic_8params"
+        study_name = "optuna_scan_filter3_order4_deterministic_8params"
         sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=20) # Use this line for loading the existing study and continue the tuning
         study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
 
