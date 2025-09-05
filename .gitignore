@@ -1,3 +1,6 @@
+# The saved sbi-log files
+sbi-logs/*
+
 *.png
 *.pdf
 
