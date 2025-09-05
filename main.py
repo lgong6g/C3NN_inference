@@ -2,7 +2,7 @@ import sys
 sys.path.append('./src')
 from hyperparameters import hparams
 from C3NN import C3NN
-from load_data import load_data
+from load_data import load_data_wide
 from sbi.inference import SNPE_C
 from sbi import utils
 from sbi.utils.get_nn_models import posterior_nn
@@ -21,10 +21,12 @@ def main(hparams, training_parameters, training_data, verbose=True):
     random_seed = 1750
     torch.manual_seed(random_seed)
     #torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
     # load data
     #print('loading data...')
-    #training_parameters, training_data = load_data(hparams)
+    #training_parameters, training_data = load_data_wide(hparams)
 
     # instatiate model, optimizer and loss function
     print('instantiating model...')
@@ -38,7 +40,7 @@ def main(hparams, training_parameters, training_data, verbose=True):
     prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
 
     #set up sbi architecture
-    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=c3nn)
+    density_estimator_custom = posterior_nn(model="mdn", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=c3nn)
     inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
 
     # joint training
@@ -70,6 +72,8 @@ if __name__ == "__main__":
 
     time_ini = time.time()
 
-    main(hparams)
+    training_parameters, training_data = load_data_wide(hparams)
+    #training_parameters, training_data = load_data_narrow(hparams)
+    main(hparams, training_parameters, training_data)
 
     print("Finished. Time elapsed:",datetime.timedelta(seconds=time.time()-time_ini))
