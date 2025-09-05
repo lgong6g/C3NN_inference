@@ -20,7 +20,9 @@ def main(hparams, training_parameters, training_data, verbose=True):
     # Make runs repeatable
     random_seed = 1750
     torch.manual_seed(random_seed)
-    #torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+    np.random.seed(random_seed)
+    random.seed(random_seed)
+    torch.backends.cudnn.enabled = True  
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
@@ -63,7 +65,7 @@ def main(hparams, training_parameters, training_data, verbose=True):
     if verbose:
         print(val_loss)
 
-    return val_loss
+    return val_loss, density_estimator, inference
 
 
 

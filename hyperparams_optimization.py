@@ -3,22 +3,32 @@ print("Max threads allowed:", numexpr.detect_number_of_cores())
 print("Threads actually used:", numexpr.get_num_threads())
 import sys
 sys.path.append('./src')
-from load_data import load_data
+from load_data import load_data_wide
 import optuna
 import pickle
+import cloudpickle as cldpk
 import numpy as np
 import torch
 import random
 import time, datetime
 import os
-from main import *
+#from main import *
 from hyperparameters import hparams
-
+from KDE_prior_estimation import KDEDistribution
+from C3NN import C3NN
+from sbi.inference import SNPE_C
+from sbi import utils
+from sbi.utils.get_nn_models import posterior_nn
+from torch import from_numpy
 
 # Make runs repeatable
 random_seed = 1750
 torch.manual_seed(random_seed)
-#torch.backends.cudnn.enabled = False  # Disable cuDNN use of nondeterministic algorithms
+np.random.seed(random_seed)
+random.seed(random_seed)
+torch.backends.cudnn.enabled = True  
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 # choose database sqlite or pickle
 #database = 'pickle'
@@ -26,7 +36,7 @@ database = 'sqlite'
 
 # load data
 print('loading data...')
-training_parameters, training_data = load_data(hparams)
+training_parameters, training_data = load_data_wide(hparams)
 
 # Objective function to minimize
 def objective(trial):
@@ -61,14 +71,45 @@ def objective(trial):
     #hparams.num_filts = num_filts
     hparams.filter_size = filter_size
 
+    # instatiate model, optimizer and loss function
+    print('instantiating model...')
+    c3nn = C3NN(hparams).to(device='cuda')
+    #c3nn = C3NN(in_channels=in_channels, num_filts=num_filts, filter_size=filter_size, order=order, absbeta=False).to(device='cuda')
+
+    # Set up prior for sbi
+    # The param here are Om, sigma8, w0, ns, Ob, H0, bary_Mc, bary_nu
+    lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
+    upper = np.array([0.5, 1.4, -0.33, 1.07, 0.06, 82.0, 15.0, 2.0])
+    prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
+
+    #set up sbi architecture
+    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=c3nn, z_score_x=None)
+    inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
+
+    # joint training
+    density_estimator = inference.append_simulations(training_parameters, training_data).train(learning_rate=hparams.learning_rate, training_batch_size=hparams.flow_training_batch_size, max_num_epochs=300)
+
+    val_loss = inference.summary['best_validation_log_prob']
+
+    # main training routine; trains until early stopping is reached
+    #train_loss, val_loss = training_routine(model, optimizer, loss_fn, train_loader, val_loader, hparams, device=device)
+    
+    print(val_loss)
 
     # Run main routine
-    val_prob = main(hparams, training_parameters, training_data, verbose = True)
+    #val_prob, density_estimator, inference = main(hparams, training_parameters, training_data, verbose = True)
 
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
+    model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_8D_25filter_5order_nozscorex_bn/trial_{trial.number}"
+    os.makedirs(model_dir, exist_ok=True)
+    with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
+        cldpk.dump(density_estimator, f)
 
-    return val_prob
+    with open(os.path.join(model_dir, "inference.pickle"), "wb") as f:
+        cldpk.dump(inference, f)
+
+    return val_loss
 
 
 #--- MAIN ---#

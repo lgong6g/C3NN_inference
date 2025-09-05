@@ -107,14 +107,16 @@ def extract_region(m, lon, lat, phi, alpha, n, fout=None, nest=False):
     return region
 
 sobol_index = np.loadtxt('sobol_indices_cosmogridv1.txt')
-wide_index = sobol_index[:1250]
-n_maps = wide_index.shape[0]
+#wide_index = sobol_index[:1250]
+narrow_index = sobol_index[1250:]
+n_maps = narrow_index.shape[0]
 n_pixels = n
 #smooth_scale = 10 # in unit of arcmin
 gnom_proj_array = np.zeros((n_maps, nsquares_update, 4, n_pixels, n_pixels))
 k = 0
-for m in wide_index:
+for m in narrow_index:
     # Maps with only weak lensing convergence signal
+    # For the test data set we use the realization index 0
     kappa_map = np.load("/e/ocean1/users/dgebauer/c3nn/kappa_maps/grid_baryonified/cosmo_%06d/nzmap_0.npy"%(m))
     kappa_map_bin1 = kappa_map[0]
     kappa_map_bin2 = kappa_map[1]
@@ -133,6 +135,7 @@ for m in wide_index:
     #kappa_map_noisy_bin3 = (kappa_map_bin3 + noise_map_bin3).astype(np.float32)
     #kappa_map_noisy_bin4 = (kappa_map_bin4 + noise_map_bin4).astype(np.float32)
 
+    # We want to smooth the CosmogridV1 maps for C3NN with sigma = 7, 14 and 28 arcmin
     #kappa_map_noisy_bin1 = hp.sphtfunc.smoothing(kappa_map_noisy_bin1, fwhm=smooth_scale/(60*180)*np.pi)
     #kappa_map_noisy_bin2 = hp.sphtfunc.smoothing(kappa_map_noisy_bin2, fwhm=smooth_scale/(60*180)*np.pi)
     #kappa_map_noisy_bin3 = hp.sphtfunc.smoothing(kappa_map_noisy_bin3, fwhm=smooth_scale/(60*180)*np.pi)
@@ -152,4 +155,4 @@ for m in wide_index:
     print("calculation complete on cosmology node %s"%(m))
     
 #np.save('/e/ocean1/users/lgong/CCNN/takahashi/kappa_data_%s_maps_200_by_200pixels_20_by_20deg_zs10_zs16_gnom_projection.npy'%(n_maps*len(lon)), gnom_proj_array)
-np.save('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy', gnom_proj_array)
+np.save('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy', gnom_proj_array)
