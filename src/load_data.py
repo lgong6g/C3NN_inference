@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+
 def load_data_wide(hparams):
 
     training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy')
@@ -30,3 +31,6 @@ def load_data_narrow(hparams):
     #training_parameters = torch.tensor(training_parameters, dtype=torch.float32)
 
     return training_parameters, training_data
+
+
+

@@ -3,6 +3,8 @@ sbi-logs/*
 
 *.png
 *.pdf
+# Ignore all Models by default
+Models/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -167,3 +169,5 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# SBI logfiles
+sbi-logs/
