@@ -1,9 +1,10 @@
-import numexpr
-print("Max threads allowed:", numexpr.detect_number_of_cores())
-print("Threads actually used:", numexpr.get_num_threads())
+#import numexpr
+#print("Max threads allowed:", numexpr.detect_number_of_cores())
+#print("Threads actually used:", numexpr.get_num_threads())
 import sys
 sys.path.append('./src')
 from load_data import load_data_wide
+#from load_data import load_data_full
 import optuna
 import pickle
 import cloudpickle as cldpk
@@ -22,7 +23,7 @@ from sbi.utils.get_nn_models import posterior_nn
 from torch import from_numpy
 
 # Make runs repeatable
-random_seed = 1750
+random_seed = 1750 # that is the seed we have been used so far
 torch.manual_seed(random_seed)
 np.random.seed(random_seed)
 random.seed(random_seed)
@@ -31,12 +32,13 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
 # choose database sqlite or pickle
-#database = 'pickle'
-database = 'sqlite'
+database = 'pickle'
+#database = 'sqlite'
 
 # load data
 print('loading data...')
 training_parameters, training_data = load_data_wide(hparams)
+#training_parameters, training_data = load_data_full(hparams)
 
 # Objective function to minimize
 def objective(trial):
@@ -47,10 +49,11 @@ def objective(trial):
     flow_hidden_features = trial.suggest_categorical("flow_hidden_features", [32, 64, 128, 256, 512])
     num_blocks = trial.suggest_int("num_blocks", 2, 6)
     #flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [10, 20, 30, 40, 50])
-    flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [16, 32, 64, 128])
+    #flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [16, 32, 64, 128])
+    flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [16])
     #num_filts = trial.suggest_int("num_filts", 1, 5) 
-    #filter_size = trial.suggest_categorical("filter_size", [15, 25, 35, 45, 55])
-    filter_size = trial.suggest_int("filter_size", 23, 47, step=2)
+    filter_size = trial.suggest_categorical("filter_size", [37])
+    #filter_size = trial.suggest_int("filter_size", 23, 47, step=2)
 
     # Some verbose
     print('\nTrial number: {}'.format(trial.number))
@@ -101,7 +104,7 @@ def objective(trial):
 
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
-    model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_8D_25filter_5order_nozscorex_bn/trial_{trial.number}"
+    model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_8D_40filter_pix37_4order_nozscorex_bn_perturbed2sets/trial_{trial.number}"
     os.makedirs(model_dir, exist_ok=True)
     with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
         cldpk.dump(density_estimator, f)
@@ -120,25 +123,25 @@ if __name__ == "__main__":
 
     #### Hypertuning using sqlite or pickle data base ####
     # Optuna parameters
-    n_trials = 20
+    n_trials = 1
 
     if database == 'pickle':
 
         # Load the saved study object and continue to tune hyperparameters
         try:
-            with open('optuna_test.pickle', 'rb') as f:
+            with open('Models/optuna_scan_filter40_pix37_order4_8dim_param_nozscorex_bn_perturbed2sets.pickle', 'rb') as f:
                 study = pickle.load(f)
         except:
             print('No existing study found. Creating new study.')
             # Define sampler and start optimization
             #sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=10)
-            sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=20) # Use this line for loading the existing study and continue the tuning
+            sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=5) # Use this line for loading the existing study and continue the tuning
             study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
 
     elif database == 'sqlite':
         storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter3_order4_deterministic_8params"
         study_name = "optuna_scan_filter3_order4_deterministic_8params"
-        sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=20) # Use this line for loading the existing study and continue the tuning
+        sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=5) # Use this line for loading the existing study and continue the tuning
         study = optuna.create_study(direction='maximize', study_name=study_name, sampler=sampler, storage=storage, load_if_exists=True)
 
     else:
@@ -149,7 +152,7 @@ if __name__ == "__main__":
     study.optimize(objective, n_trials, gc_after_trial=True)
 
     if database == 'pickle':
-        with open('optuna_test.pickle', 'wb') as f:
+        with open('Models/optuna_scan_filter40_pix37_order4_8dim_param_nozscorex_bn_perturbed2sets.pickle', 'wb') as f:
             pickle.dump(study, f)
         
     # Print info for best trial
