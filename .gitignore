@@ -171,3 +171,6 @@ cython_debug/
 
 # SBI logfiles
 sbi-logs/
+
+# Data Files
+data/
