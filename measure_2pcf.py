@@ -1,12 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from treecorr import kkcorrelation, Catalog
-import torch
 from itertools import combinations_with_replacement
 from tqdm import tqdm
 import psutil
 import os
 import gc
+import subprocess
+import sys
+import tempfile
 
 
 def get_memory_usage():
@@ -15,136 +17,164 @@ def get_memory_usage():
     return process.memory_info().rss / 1024**3
 
 
-def load_data(data_path):
-    """Load the kappa maps data using memory mapping"""
-    print(f"Loading data from {data_path}")
-    print(f"Initial memory usage: {get_memory_usage():.2f} GB")
-    
-    square_maps = np.load(data_path, mmap_mode='r')
-    print(f"Data shape: {square_maps.shape}")  # (1250, 150, 4, 50, 50)
-    print(f"Memory usage after loading: {get_memory_usage():.2f} GB")
-    
-    return square_maps
+def create_cosmology_script(cosmo, data_path, output_file):
+    """Create a standalone script to process a single cosmology"""
+    script_content = f"""
+import numpy as np
+from treecorr import kkcorrelation, Catalog
+from itertools import combinations_with_replacement
+import os
+import gc
 
-
-def setup_coordinates():
-    """Set up coordinate arrays for the correlation calculation"""
+def process_cosmology():
+    # Load data
+    square_maps = np.load('{data_path}', mmap_mode='r')
+    
+    # Set up coordinates
     x = np.arange(50) * (6 * 60 / 50)  # arcmin
     y = np.arange(50) * (6 * 60 / 50)  # arcmin
-    
     X, Y = np.meshgrid(x, y)
     x_coords = X.flatten()
     y_coords = Y.flatten()
     
-    return x_coords, y_coords
-
-
-def get_redshift_combinations():
-    """Get all redshift bin combinations"""
+    # Get redshift combinations
     zcombs = list(combinations_with_replacement(range(4), 2))
-    print(f"Redshift combinations: {zcombs}")
-    return zcombs
-
-
-def create_correlation_object():
-    """Create and return a TreeCorr KKCorrelation object"""
-    return kkcorrelation.KKCorrelation(
-        min_sep=10, 
-        max_sep=250, 
-        nbins=20, 
-        sep_units='arcmin', 
-        bin_slop=0.1, 
-        metric='Euclidean'
-    )
-
-
-def process_single_correlation(square_maps, cosmo, map_id, z1, z2, x_coords, y_coords, corr):
-    """Process a single correlation calculation"""
-    cat1 = Catalog(
-        x=x_coords, 
-        y=y_coords, 
-        k=square_maps[cosmo, map_id, z1].flatten(), 
-        x_units='arcmin', 
-        y_units='arcmin'
-    )
-    cat2 = Catalog(
-        x=x_coords, 
-        y=y_coords, 
-        k=square_maps[cosmo, map_id, z2].flatten(), 
-        x_units='arcmin', 
-        y_units='arcmin'
-    )
     
-    corr.process(cat1, cat2)
-    xi_value = corr.xi
-    corr.clear()
-    
-    # Clean up catalogs
-    del cat1, cat2
-    
-    return xi_value
-
-
-def process_cosmology(square_maps, cosmo, x_coords, y_coords, zcombs, corr, pbar):
-    """Process all correlations for a single cosmology"""
+    cosmo = {cosmo}
     cosmo_corrs = np.zeros((150, 10, 20))
     
     for map_id in range(150):
         for i, (z1, z2) in enumerate(zcombs):
-            xi_value = process_single_correlation(
-                square_maps, cosmo, map_id, z1, z2, 
-                x_coords, y_coords, corr
-            )
-            cosmo_corrs[map_id, i] = xi_value
+            # Create copies of the data
+            k1_data = square_maps[cosmo, map_id, z1].flatten().copy()
+            k2_data = square_maps[cosmo, map_id, z2].flatten().copy()
             
-            pbar.update(1)
-            pbar.set_description(f'Processing cosmology {cosmo}, map {map_id}, zbin {i}')
-            pbar.set_postfix(Memory=f"{get_memory_usage():.2f} GB")
+            # Create fresh correlation object
+            corr = kkcorrelation.KKCorrelation(
+                min_sep=10, 
+                max_sep=250, 
+                nbins=20, 
+                sep_units='arcmin', 
+                bin_slop=0.1, 
+                metric='Euclidean'
+            )
+            
+            cat1 = Catalog(
+                x=x_coords, 
+                y=y_coords, 
+                k=k1_data, 
+                x_units='arcmin', 
+                y_units='arcmin'
+            )
+            cat2 = Catalog(
+                x=x_coords, 
+                y=y_coords, 
+                k=k2_data, 
+                x_units='arcmin', 
+                y_units='arcmin'
+            )
+            
+            corr.process(cat1, cat2)
+            xi_value = corr.xi.copy()
+            
+            # Clean up
+            del cat1, cat2, k1_data, k2_data, corr
+            gc.collect()
+            
+            cosmo_corrs[map_id, i] = xi_value
     
-    return cosmo_corrs
+    # Save result
+    np.save('{output_file}', cosmo_corrs)
+    print(f"Completed cosmology {{cosmo}}")
+
+if __name__ == "__main__":
+    process_cosmology()
+"""
+    return script_content
 
 
-def compute_correlations(square_maps, x_coords, y_coords, zcombs):
-    """Main function to compute all correlations"""
-    print("Starting correlation computation...")
+def process_cosmology_subprocess(cosmo, data_path, output_file):
+    """Process a single cosmology in a completely separate Python process"""
+    # Create temporary script file
+    script_content = create_cosmology_script(cosmo, data_path, output_file)
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        f.write(script_content)
+        script_path = f.name
+    
+    try:
+        # Run the script in a subprocess
+        result = subprocess.run(
+            [sys.executable, script_path],
+            capture_output=True,
+            text=True,
+            timeout=3600  # 1 hour timeout
+        )
+        
+        if result.returncode != 0:
+            print(f"Error processing cosmology {cosmo}: {result.stderr}")
+            return False
+        
+        # Check if output file was created
+        if os.path.exists(output_file):
+            return True
+        else:
+            print(f"Output file not created for cosmology {cosmo}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print(f"Timeout processing cosmology {cosmo}")
+        return False
+    except Exception as e:
+        print(f"Exception processing cosmology {cosmo}: {e}")
+        return False
+    finally:
+        # Clean up script file
+        if os.path.exists(script_path):
+            os.remove(script_path)
+    
+    return False
+
+
+def compute_correlations_subprocess(data_path):
+    """Compute correlations using subprocess isolation"""
+    print("Starting subprocess-based correlation computation...")
     print(f"Memory usage: {get_memory_usage():.2f} GB")
     
     # Create output directory
     os.makedirs('./data', exist_ok=True)
     
-    # Create correlation object
-    corr = create_correlation_object()
+    start_id = 0
+    stop_id = 1250
     
-    total_operations = 1250 * 150 * len(zcombs)
+    successful_cosmologies = 0
+    failed_cosmologies = 0
     
-    with tqdm(total=total_operations) as pbar:
-        for cosmo in range(1250):
-            # Recreate correlation object every 100 cosmologies to manage memory
-            if cosmo % 100 == 0 and cosmo > 0:
-                del corr
-                gc.collect()
-                corr = create_correlation_object()
-                print(f"Recreated correlation object at cosmology {cosmo}")
-                print(f"Memory usage: {get_memory_usage():.2f} GB")
+    # Create progress bar
+    with tqdm(total=stop_id - start_id, desc="Processing cosmologies") as pbar:
+        for cosmo in range(start_id, stop_id):
+            output_file = f'./data/2PCF_wide_realization0_cosmo{cosmo}.npy'
             
-            # Process this cosmology
-            cosmo_corrs = process_cosmology(
-                square_maps, cosmo, x_coords, y_coords, zcombs, corr, pbar
+            pbar.set_description(f'Processing cosmology {cosmo}')
+            
+            success = process_cosmology_subprocess(cosmo, data_path, output_file)
+            
+            if success:
+                successful_cosmologies += 1
+            else:
+                failed_cosmologies += 1
+            
+            # Update progress bar with additional info
+            pbar.set_postfix(
+                Memory=f"{get_memory_usage():.2f} GB",
+                Success=successful_cosmologies,
+                Failed=failed_cosmologies
             )
-            
-            # Save results
-            np.save(f'./data/2PCF_wide_realization0_cosmo{cosmo}.npy', cosmo_corrs)
-            
-            # Clean up
-            del cosmo_corrs
-            gc.collect()
+            pbar.update(1)
     
-    # Clean up correlation object
-    del corr
-    gc.collect()
-    
-    print("Correlation computation completed!")
-    print(f"Memory usage: {get_memory_usage():.2f} GB")
+    print("Subprocess correlation computation completed!")
+    print(f"Final memory usage: {get_memory_usage():.2f} GB")
+    print(f"Total successful: {successful_cosmologies}, Total failed: {failed_cosmologies}")
 
 
 def compute_mean_correlations():
@@ -154,14 +184,19 @@ def compute_mean_correlations():
     
     corrs = np.zeros((1250, 150, 10, 20))
     
-    for cosmo in range(1250):
-        corrs[cosmo] = np.load(f'./data/2PCF_wide_realization0_cosmo{cosmo}.npy')
-        
-        # Clean up individual files to save disk space
-        os.remove(f'./data/2PCF_wide_realization0_cosmo{cosmo}.npy')
-        
-        if cosmo % 100 == 0:
-            print(f"Loaded cosmology {cosmo}, Memory usage: {get_memory_usage():.2f} GB")
+    with tqdm(total=1250, desc="Loading cosmologies") as pbar:
+        for cosmo in range(1250):
+            file_path = f'./data/2PCF_wide_realization0_cosmo{cosmo}.npy'
+            if os.path.exists(file_path):
+                corrs[cosmo] = np.load(file_path)
+                # Clean up individual files to save disk space
+                os.remove(file_path)
+            else:
+                print(f"Warning: File not found for cosmology {cosmo}")
+            
+            pbar.set_description(f'Loading cosmology {cosmo}')
+            pbar.set_postfix(Memory=f"{get_memory_usage():.2f} GB")
+            pbar.update(1)
     
     # Compute mean across maps
     corrs_mean = np.mean(corrs, axis=1)
@@ -177,27 +212,14 @@ def compute_mean_correlations():
 
 def main():
     """Main function to calculate 2PCFs"""
-    print("Starting 2PCF calculation...")
+    print("Starting 2PCF calculation with complete subprocess isolation...")
     
     # Data path
     data_path = '/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy'
     
     try:
-        # Load data
-        square_maps = load_data(data_path)
-        
-        # Set up coordinates
-        x_coords, y_coords = setup_coordinates()
-        
-        # Get redshift combinations
-        zcombs = get_redshift_combinations()
-        
-        # Compute correlations
-        compute_correlations(square_maps, x_coords, y_coords, zcombs)
-        
-        # Clean up data
-        del square_maps, x_coords, y_coords, zcombs
-        gc.collect()
+        # Compute correlations using subprocess isolation
+        compute_correlations_subprocess(data_path)
         
         # Compute mean correlations
         compute_mean_correlations()
