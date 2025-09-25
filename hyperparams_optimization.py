@@ -15,7 +15,7 @@ import time, datetime
 import os
 #from main import *
 from hyperparameters import hparams
-from KDE_prior_estimation import KDEDistribution
+#from KDE_prior_estimation import KDEDistribution
 from C3NN import C3NN
 from sbi.inference import SNPE_C
 from sbi import utils
@@ -104,7 +104,7 @@ def objective(trial):
 
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
-    model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_8D_40filter_pix37_4order_nozscorex_bn_perturbed2sets/trial_{trial.number}"
+    model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/c3nn_tuned_model_param_8D_40filter_3order_nozscorex_bn/trial_{trial.number}"
     os.makedirs(model_dir, exist_ok=True)
     with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
         cldpk.dump(density_estimator, f)
