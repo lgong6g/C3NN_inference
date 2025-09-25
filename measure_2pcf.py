@@ -210,7 +210,7 @@ def compute_mean_correlations():
     gc.collect()
 
 
-def main():
+def main_grid():
     """Main function to calculate 2PCFs"""
     print("Starting 2PCF calculation with complete subprocess isolation...")
     
@@ -234,6 +234,69 @@ def main():
         gc.collect()
         print(f"Final memory usage: {get_memory_usage():.2f} GB")
 
+def main_fiducial():
+    # testing_data shape: (150, 4, 50, 50)
+    # 150 maps, 4 redshift bins, 50x50 pixels
+    testing_data = np.load("/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_fiducial_cosmology_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy")
+
+    # Set up coordinates (arcmin)
+    x = np.arange(50) * (6 * 60 / 50)  # arcmin
+    y = np.arange(50) * (6 * 60 / 50)  # arcmin
+    X, Y = np.meshgrid(x, y)
+    x_coords = X.flatten()
+    y_coords = Y.flatten()
+
+    zcombs = list(combinations_with_replacement(range(4), 2))  # 10 combinations
+
+    # Store all 2PCFs: (n_maps, n_zcombs, n_bins)
+    test_corrs = np.zeros((150, 10, 10))
+
+    for map_id in tqdm(range(150)):
+        for i, (z1, z2) in enumerate(zcombs):
+            k1_data = testing_data[map_id, z1].flatten().copy()
+            k2_data = testing_data[map_id, z2].flatten().copy()
+            
+            corr = kkcorrelation.KKCorrelation(
+                min_sep=10, 
+                max_sep=250, 
+                nbins=10, 
+                sep_units='arcmin', 
+                bin_slop=0.1, 
+                metric='Euclidean'
+            )
+            
+            cat1 = Catalog(
+                x=x_coords, 
+                y=y_coords, 
+                k=k1_data, 
+                x_units='arcmin', 
+                y_units='arcmin'
+            )
+            cat2 = Catalog(
+                x=x_coords, 
+                y=y_coords, 
+                k=k2_data, 
+                x_units='arcmin', 
+                y_units='arcmin'
+            )
+            
+            corr.process(cat1, cat2)
+            test_corrs[map_id, i] = corr.xi.copy()
+            
+            # Clean up
+            del cat1, cat2, k1_data, k2_data, corr
+
+    # test_corrs now contains the 2PCF for each map and redshift combination
+    np.save("./data/2PCF_fiducial_idx0.npy", test_corrs.mean(axis=0))
+
+
 
 if __name__ == "__main__":
-    main()
+    
+    mode = 'fiducial'
+    if mode == 'fiducial':
+        main_fiducial()
+    elif mode == 'grid':
+        main_grid()
+    else:
+        raise ValueError(f"Invalid mode: {mode}")
