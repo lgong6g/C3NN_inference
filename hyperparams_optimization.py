@@ -123,7 +123,7 @@ if __name__ == "__main__":
 
     #### Hypertuning using sqlite or pickle data base ####
     # Optuna parameters
-    n_trials = 1
+    n_trials = 4
 
     if database == 'pickle':
 

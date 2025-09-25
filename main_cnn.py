@@ -1,7 +1,10 @@
+import os
 import sys
 sys.path.append('./src')
+import pickle
 from hyperparameters import hparams, hparams_cnn
-from C3NN import C3NN
+from CNN import CNNEmbedding
+from CNN_resnet import ResidualBlock, CNNResEmbedding
 from load_data import load_data_wide
 from sbi.inference import SNPE_C
 from sbi import utils
@@ -32,8 +35,9 @@ def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True)
 
     # instatiate model, optimizer and loss function
     print('instantiating model...')
-    cnn = CNNEmbedding(hparams_cnn).to(device='cuda')
-
+    #cnn = CNNEmbedding(hparams_cnn).to(device='cuda')
+    cnn = CNNResEmbedding().to(device='cuda')
+    
     # Set up prior for sbi
     # The param here are Om, sigma8, w0, ns, Ob, H0, bary_Mc, bary_nu
     lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
@@ -41,7 +45,7 @@ def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True)
     prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
 
     #set up sbi architecture
-    density_estimator_custom = posterior_nn(model="mdn", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=cnn)
+    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=cnn, z_score_x=None)
     inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
 
     # joint training
@@ -52,11 +56,15 @@ def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True)
     # main training routine; trains until early stopping is reached
     #train_loss, val_loss = training_routine(model, optimizer, loss_fn, train_loader, val_loader, hparams, device=device)
 
-    if hparams.save:
-        with open(f"Models/{hparams.name_model()}_inference.pkl", "wb") as handle:
-            cpk.dump(inference, handle)
-        with open(f"Models/{hparams.name_model()}_density_estimator.pkl", "wb") as handle:
-            cpk.dump(density_estimator, handle)
+    if hparams_cnn.save:
+        #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/cnn-sbi_models/model_{hparams_cnn.name_model()}"
+        model_dir = f"/e/ocean1/users/lgong/C3NN_inference/cnn-sbi_models/model_cnn_resnet"
+        os.makedirs(model_dir, exist_ok=True)
+        with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
+            cpk.dump(density_estimator, f)
+
+        with open(os.path.join(model_dir, "inference.pickle"), "wb") as f:
+            cpk.dump(inference, f)
         print('Model saved')
     else:
         print('Not saving')

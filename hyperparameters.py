@@ -29,34 +29,36 @@ class hyperparameters():
     def name_model(self):
         return "order_{:d}_filters_{:d}_size_{:d}_lr_{:.2e}_features_{:d}_blocks_{:d}_transforms_{:d}_batchsize_{:d}".format(self.order,self.num_filts,self.filter_size,self.learning_rate, self.flow_hidden_features, self.num_blocks, self.flow_num_transforms, self.flow_training_batch_size)
 
-# ---------------- Hyperparameters ---------------- #
 
+# ---------------- Hyperparameters ---------------- #
 class hyperparameters_cnn:
     """
-    Hyperparameters for a CNN that outputs an embedding vector (bottleneck).
-
+    Hyperparameters for a CNN that outputs an embedding vector (bottleneck),
+    with two block types: pooled and non-pooled.
     Required:
       - learning_rate: float
-      - in_channels: int (e.g., 1, 3, or 4)
-      - num_blocks: int (how many conv blocks; each block downsamples by 2)
-      - num_filts: int (base filters; doubled each block)
-      - filter_size: int (kernel size, usually odd like 3/5/7/33)
-      - bottleneck: int (length of the final embedding vector)
-
+      - in_channels: int
+      - num_blocks: int               # number of conv blocks WITH MaxPool
+      - num_blocks_nopool: int        # number of conv blocks WITHOUT MaxPool
+      - num_filts: int                # base filters; doubled each block across total depth
+      - filter_size: int              # kernel size (e.g., 3/5/7/33)
+      - bottleneck: int               # length of the final embedding vector
     Optional:
       - use_batchnorm: bool
       - activation: str ("relu" or "gelu")
-      - dropout: float (applied in the MLP head)
-      - fc_hidden: int or list[int] (hidden size(s) before bottleneck)
-      - l2_normalize: bool (if True, return unit-norm embeddings)
+      - dropout: float                # applied in the MLP head
+      - fc_hidden: int or list[int]   # hidden size(s) before bottleneck
+      - l2_normalize: bool
       - save: bool
       - device: str
     """
+    
     def __init__(
         self,
         learning_rate,
         in_channels,
         num_blocks,
+        num_blocks_nopool,      # NEW
         num_filts,
         filter_size,
         bottleneck,
@@ -70,31 +72,32 @@ class hyperparameters_cnn:
     ):
         # Training hparams
         self.learning_rate = float(learning_rate)
-
-        # CNN hparams (preserving your naming style)
-        self.in_channels   = int(in_channels)
-        self.num_blocks    = int(num_blocks)
-        self.num_filts     = int(num_filts)
-        self.filter_size   = int(filter_size)
-        self.bottleneck    = int(bottleneck)
-
+        # CNN hparams
+        self.in_channels        = int(in_channels)
+        self.num_blocks         = int(num_blocks)            # with MaxPool
+        self.num_blocks_nopool  = int(num_blocks_nopool)     # without MaxPool (NEW)
+        self.num_filts          = int(num_filts)
+        self.filter_size        = int(filter_size)
+        self.bottleneck         = int(bottleneck)
         # Head / regularization
         self.use_batchnorm = bool(use_batchnorm)
         self.activation    = str(activation)
         self.dropout       = float(dropout)
         self.fc_hidden     = fc_hidden  # int or list[int]
         self.l2_normalize  = bool(l2_normalize)
-
         # bookkeeping
         self.save   = bool(save)
         self.device = str(device)
-
+    
     def name_model(self):
+        total_blocks = self.num_blocks + self.num_blocks_nopool
         return (
-            "cnn_blocks_{:d}_basefilts_{:d}_ks_{:d}_bneck_{:d}_lr_{:.2e}_"
-            "act_{:s}_bn_{:d}_drop_{:.2f}_fc{:s}_l2_{:d}"
+            "cnn_blocksP_{:d}_blocksNP_{:d}_total_{:d}_basefilts_{:d}_ks_{:d}_"
+            "bneck_{:d}_lr_{:.2e}_act_{:s}_bn_{:d}_drop_{:.2f}_fc{:s}_l2_{:d}"
         ).format(
             self.num_blocks,
+            self.num_blocks_nopool,
+            total_blocks,
             self.num_filts,
             self.filter_size,
             self.bottleneck,
@@ -107,35 +110,34 @@ class hyperparameters_cnn:
         )
 
 
-
 #--- HYPERPARAMETER CHOICES ---#
 
-hparams = hyperparameters(learning_rate = 0.00014201803439538936,#0.00017544532449604214,    # Learning rate
-                          flow_hidden_features = 64,#128,
-                          num_blocks = 4,#5,
-                          flow_num_transforms = 4,#3,
-                          flow_training_batch_size = 16,#8,
+hparams = hyperparameters(learning_rate = 1e-3,  #1.4201803439538936e-4, # Learning rate
+                          flow_hidden_features = 128,
+                          num_blocks = 4,
+                          flow_num_transforms = 15,
+                          flow_training_batch_size = 32,
                           in_channels = 4, # not optimzed
                           num_filts = 40, # The number of filters to learn in our model
                           filter_size = 33, # The spatial length of the filters
                           order = 4, # The highest order of correlation measured, not optimized
-                          save = False,  
+                          save = True,  
                           device = 'cuda'
                           )
 
 
-hparams_cnn = hyperparameters_cnn(
-     learning_rate=1.4201803439538936e-4,
-     in_channels=4,
-     num_blocks=2,#4,
-     num_filts=10,
-     filter_size=33,
-     bottleneck=32,
-     use_batchnorm=True,
-     activation="relu",
-     dropout=0.2,
-     fc_hidden=[64],
-     l2_normalize=False,
-     save=True,
-     device="cuda",
- )
+hparams_cnn = hyperparameters_cnn(learning_rate = 1e-3,
+                                  in_channels = 4,
+                                  num_blocks = 4,
+                                  num_blocks_nopool = 0,
+                                  num_filts = 32,
+                                  filter_size = 7,
+                                  bottleneck = 32,
+                                  use_batchnorm = True,
+                                  activation = "relu",
+                                  #dropout=0.2,
+                                  fc_hidden = [64, 64],
+                                  l2_normalize = True,
+                                  save = True,
+                                  device = "cuda",
+                                  )
