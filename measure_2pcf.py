@@ -41,7 +41,7 @@ def process_cosmology():
     zcombs = list(combinations_with_replacement(range(4), 2))
     
     cosmo = {cosmo}
-    cosmo_corrs = np.zeros((150, 10, 20))
+    cosmo_corrs = np.zeros((150, 10, 10))
     
     for map_id in range(150):
         for i, (z1, z2) in enumerate(zcombs):
@@ -53,7 +53,7 @@ def process_cosmology():
             corr = kkcorrelation.KKCorrelation(
                 min_sep=10, 
                 max_sep=250, 
-                nbins=20, 
+                nbins=10, 
                 sep_units='arcmin', 
                 bin_slop=0.1, 
                 metric='Euclidean'
@@ -182,7 +182,7 @@ def compute_mean_correlations():
     print("Computing mean correlations...")
     print(f"Memory usage: {get_memory_usage():.2f} GB")
     
-    corrs = np.zeros((1250, 150, 10, 20))
+    corrs = np.zeros((1250, 150, 10, 10))
     
     with tqdm(total=1250, desc="Loading cosmologies") as pbar:
         for cosmo in range(1250):
