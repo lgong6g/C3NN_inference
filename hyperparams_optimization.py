@@ -104,7 +104,9 @@ def objective(trial):
 
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
-    model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/c3nn_tuned_model_param_8D_40filter_3order_nozscorex_bn/trial_{trial.number}"
+    #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_8D_25filter_5order_nozscorex_bn/trial_{trial.number}"
+    #model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/c3nn_tuned_model_param_8D_40filter_3order_nozscorex_bn/trial_{trial.number}"
+    model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/bandlimit_0"
     os.makedirs(model_dir, exist_ok=True)
     with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
         cldpk.dump(density_estimator, f)
@@ -123,7 +125,7 @@ if __name__ == "__main__":
 
     #### Hypertuning using sqlite or pickle data base ####
     # Optuna parameters
-    n_trials = 4
+    n_trials = 1
 
     if database == 'pickle':
 
@@ -151,9 +153,11 @@ if __name__ == "__main__":
     
     study.optimize(objective, n_trials, gc_after_trial=True)
 
+    '''
     if database == 'pickle':
         with open('Models/optuna_scan_filter40_pix37_order4_8dim_param_nozscorex_bn_perturbed2sets.pickle', 'wb') as f:
             pickle.dump(study, f)
+    '''
         
     # Print info for best trial
     print("Best trial:")
