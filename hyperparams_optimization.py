@@ -1,6 +1,3 @@
-#import numexpr
-#print("Max threads allowed:", numexpr.detect_number_of_cores())
-#print("Threads actually used:", numexpr.get_num_threads())
 import sys
 sys.path.append('./src')
 from load_data import load_data_wide
@@ -13,14 +10,19 @@ import torch
 import random
 import time, datetime
 import os
-#from main import *
+from main import *
 from hyperparameters import hparams
-from C3NN_extensions import C3NN_w_std, C3NN_Nptonly_Nptbn, CombinedC3NN_Nptbn
-from C3NN import C3NN
 from sbi.inference import SNPE_C
 from sbi import utils
 from sbi.utils.get_nn_models import posterior_nn
 from torch import from_numpy
+import argparse
+
+parser = argparse.ArgumentParser(description="My program description")
+parser.add_argument("-t", "--test", action="store_true", help="Run in test mode")
+args = parser.parse_args()
+if args.test:
+    print('Running in test mode')
 
 # Make runs repeatable
 random_seed = 1750 # that is the seed we have been used so far
@@ -47,8 +49,13 @@ prefix_filter_weights = pretrained_c3nn.corr_conv.conv.expand_parameters()[0].ab
 """
 # load data
 print('loading data...')
-training_parameters, training_data = load_data_wide(hparams)
-#training_parameters, training_data = load_data_full(hparams)
+if hparams.model == 'hybrid':
+    training_parameters, training_data = load_data_hybrid(hparams)
+else:
+    training_parameters, training_data = load_data_wide(hparams)
+    #training_parameters, training_data = load_data_full(hparams)
+if args.test:
+    training_parameters, training_data = training_parameters[:10], training_data[:10]
 
 # Objective function to minimize
 def objective(trial):
@@ -88,51 +95,18 @@ def objective(trial):
 
     # instatiate model, optimizer and loss function
     # initialize the new model filter weights from the pre-trained model
-    print('instantiating model...')
-    c3nn = C3NN_w_std(hparams).to(device='cuda')
+    #print('instantiating model...')
+    #c3nn = C3NN_w_std(hparams).to(device='cuda')
     #c3nn = C3NN_Nptonly_Nptbn(hparams, prefix_filter_weights).to(device='cuda')
     #embedding_c3nn = CombinedC3NN_Nptbn(pretrained_c3nn, c3nn)
 
-    # Set up prior for sbi
-    # The param here are Om, sigma8, w0, ns, Ob, H0, bary_Mc, bary_nu
-    #lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
-    #upper = np.array([0.5, 1.4, -0.33, 1.07, 0.06, 82.0, 15.0, 2.0])
-
-    # The param here are Om, sigma8, w0 only
-    lower = np.array([0.1, 0.4, -2.0])
-    upper = np.array([0.5, 1.4, -0.33])
-    
-    prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
-
-    #set up sbi architecture
-    density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=c3nn, z_score_x=None)
-    inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
-
-    # joint training
-    density_estimator = inference.append_simulations(training_parameters, training_data).train(learning_rate=hparams.learning_rate, training_batch_size=hparams.flow_training_batch_size, max_num_epochs=300)
-
-    val_loss = inference.summary['best_validation_log_prob']
-
-    # main training routine; trains until early stopping is reached
-    #train_loss, val_loss = training_routine(model, optimizer, loss_fn, train_loader, val_loader, hparams, device=device)
-    
-    print(val_loss)
-
     # Run main routine
-    #val_prob, density_estimator, inference = main(hparams, training_parameters, training_data, verbose = True)
+    val_prob, density_estimator, inference = main(hparams, training_parameters, training_data, verbose = True, test= args.test)
 
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
-    model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_3D_25filter_pix37_2order_nozscorex_bn_w_std_no_c1/trial_{trial.number}"
-    #model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/c3nn_tuned_model_param_8D_40filter_3order_nozscorex_bn/trial_{trial.number}"
-    os.makedirs(model_dir, exist_ok=True)
-    with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
-        cldpk.dump(density_estimator, f)
 
-    with open(os.path.join(model_dir, "inference.pickle"), "wb") as f:
-        cldpk.dump(inference, f)
-
-    return val_loss
+    return val_prob
 
 
 #--- MAIN ---#
@@ -145,7 +119,10 @@ if __name__ == "__main__":
     # Optuna parameters
     n_trials = 1
 
-    if database == 'pickle':
+    if args.test:
+        sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=5) # Use this line for loading the existing study and continue the tuning
+        study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
+    elif database == 'pickle':
 
         # Load the saved study object and continue to tune hyperparameters
         try:
@@ -158,7 +135,7 @@ if __name__ == "__main__":
             sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=5) # Use this line for loading the existing study and continue the tuning
             study = optuna.create_study(direction='maximize', sampler=sampler) # This line should be commmented out if loading the existing study
 
-    elif database == 'sqlite':
+    elif database == 'sqlite' and not args.test:
         storage = "sqlite:///"+os.getcwd()+"/optuna_scan_filter3_order4_deterministic_8params"
         study_name = "optuna_scan_filter3_order4_deterministic_8params"
         sampler = optuna.samplers.TPESampler(seed=1750, n_startup_trials=5) # Use this line for loading the existing study and continue the tuning
@@ -171,11 +148,12 @@ if __name__ == "__main__":
     
     study.optimize(objective, n_trials, gc_after_trial=True)
 
-    '''
-    if database == 'pickle':
-        with open('Models/optuna_scan_filter25_pix37_order2_3dim_param_nozscorex_bn_w_std_no_c1.pickle', 'wb') as f:
+    if database == 'pickle' and args.test:
+        with open('Models/testing_optuna.pickle', 'wb') as f:
             pickle.dump(study, f)
-    '''
+    elif database == 'pickle':
+        with open('Models/optuna.pickle', 'wb') as f:
+            pickle.dump(study, f)
         
     # Print info for best trial
     print("Best trial:")

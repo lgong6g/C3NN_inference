@@ -3,7 +3,7 @@
 
 class hyperparameters():
     def __init__(self, learning_rate, flow_hidden_features, num_blocks, flow_num_transforms, flow_training_batch_size,
-                 in_channels, num_filts, filter_size, order, out_dim, save=True, device='cuda'):
+                 in_channels, num_filts, filter_size, order, out_dim, save=True, device='cuda', model='w_std'):
 
         # Learning rate
         self.learning_rate = learning_rate
@@ -25,6 +25,9 @@ class hyperparameters():
 
         #device to use
         self.device=device
+
+        # which C3NN version
+        self.model=model
 
     # Name of the model and hyperparameters
     def name_model(self):
@@ -124,7 +127,8 @@ hparams = hyperparameters(learning_rate = 1e-3,  #1.4201803439538936e-4, # Learn
                           order = 2, # The highest order of correlation measured, not optimized
                           out_dim = 150, # The output dimension from the final FC layer
                           save = True,  
-                          device = 'cuda'
+                          device = 'cuda',
+                          model = 'w_std'  # default, w_std or hybrid
                           )
 
 
