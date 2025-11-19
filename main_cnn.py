@@ -40,16 +40,19 @@ def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True)
     
     # Set up prior for sbi
     # The param here are Om, sigma8, w0, ns, Ob, H0, bary_Mc, bary_nu
-    lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
-    upper = np.array([0.5, 1.4, -0.33, 1.07, 0.06, 82.0, 15.0, 2.0])
+    #lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
+    #upper = np.array([0.5, 1.4, -0.33, 1.07, 0.06, 82.0, 15.0, 2.0])
+    # only consider 3 params
+    lower = np.array([0.1, 0.4, -2.0])
+    upper = np.array([0.5, 1.4, -0.33])
     prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
 
     #set up sbi architecture
     density_estimator_custom = posterior_nn(model="maf", hidden_features=hparams.flow_hidden_features, num_transforms=hparams.flow_num_transforms, num_blocks=hparams.num_blocks, device=hparams.device, embedding_net=cnn, z_score_x=None)
     inference = SNPE_C(prior, device=hparams.device, density_estimator=density_estimator_custom)
 
-    # joint training
-    density_estimator = inference.append_simulations(training_parameters, training_data).train(learning_rate=hparams.learning_rate, training_batch_size=hparams.flow_training_batch_size, max_num_epochs=300)
+    # joint training   # only 3 params
+    density_estimator = inference.append_simulations(training_parameters[:,:3], training_data).train(learning_rate=hparams.learning_rate, training_batch_size=hparams.flow_training_batch_size, max_num_epochs=300)
 
     val_loss = inference.summary['best_validation_log_prob']
 
@@ -58,7 +61,8 @@ def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True)
 
     if hparams_cnn.save:
         #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/cnn-sbi_models/model_{hparams_cnn.name_model()}"
-        model_dir = f"/e/ocean1/users/lgong/C3NN_inference/cnn-sbi_models/model_cnn_resnet"
+        #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/cnn-sbi_models/model_cnn_resnet"
+        model_dir = f"/project/ag-weller/Kai.Lehman/C3NN_Models/CNN/"
         os.makedirs(model_dir, exist_ok=True)
         with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
             cpk.dump(density_estimator, f)

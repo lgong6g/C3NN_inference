@@ -119,25 +119,25 @@ hparams = hyperparameters(learning_rate = 1e-3,  #1.4201803439538936e-4, # Learn
                           flow_training_batch_size = 32,
                           in_channels = 4, # not optimzed
                           num_filts = 40, # The number of filters to learn in our model
-                          filter_size = 33, # The spatial length of the filters
+                          filter_size = 37, # The spatial length of the filters
                           order = 4, # The highest order of correlation measured, not optimized
-                          save = True,  
+                          save = False,  
                           device = 'cuda'
                           )
 
 
-hparams_cnn = hyperparameters_cnn(learning_rate = 1e-3,
+hparams_cnn = hyperparameters_cnn(learning_rate = 1e-4,
                                   in_channels = 4,
                                   num_blocks = 4,
-                                  num_blocks_nopool = 0,
+                                  num_blocks_nopool = 2,
                                   num_filts = 32,
                                   filter_size = 7,
                                   bottleneck = 32,
                                   use_batchnorm = True,
                                   activation = "relu",
                                   #dropout=0.2,
-                                  fc_hidden = [64, 64],
-                                  l2_normalize = True,
-                                  save = True,
+                                  fc_hidden = [128, 128],
+                                  l2_normalize = False,
+                                  save = False,
                                   device = "cuda",
                                   )
