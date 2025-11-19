@@ -4,7 +4,7 @@
 import sys
 sys.path.append('./src')
 from load_data import load_data_wide
-#from load_data import load_data_full
+#from load_data import load_data_wide_noaverage
 import optuna
 import pickle
 import cloudpickle as cldpk
@@ -15,7 +15,7 @@ import time, datetime
 import os
 #from main import *
 from hyperparameters import hparams
-#from KDE_prior_estimation import KDEDistribution
+from C3NN_extensions import C3NN_w_std, C3NN_Nptonly_Nptbn, CombinedC3NN_Nptbn
 from C3NN import C3NN
 from sbi.inference import SNPE_C
 from sbi import utils
@@ -35,6 +35,16 @@ torch.backends.cudnn.deterministic = True
 database = 'pickle'
 #database = 'sqlite'
 
+"""
+# load pretrained model
+with open('/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_3D_40filter_pix37_4order_nozscorex_bn_w_std_nocompression/trial_0/density_estimator.pickle', 'rb') as f:
+    density_estimator = cldpk.load(f)
+
+pretrained_c3nn = density_estimator._embedding_net
+# Use the pretrained model filter weights as the initialization for the hybrid new model
+# One needs to select the corresponding pixels indices for the new model
+prefix_filter_weights = pretrained_c3nn.corr_conv.conv.expand_parameters()[0].abs()[:, :, 14:23, 14:23]
+"""
 # load data
 print('loading data...')
 training_parameters, training_data = load_data_wide(hparams)
@@ -46,9 +56,11 @@ def objective(trial):
     # Hyperparameters to optimize
     flow_learning_rate = trial.suggest_float("flow_learning_rate", 1e-5, 1e-2, log=True)
     flow_num_transforms = trial.suggest_int("flow_num_transforms", 2, 8)
+    #flow_num_transforms = trial.suggest_int("flow_num_transforms", 7, 14)
     flow_hidden_features = trial.suggest_categorical("flow_hidden_features", [32, 64, 128, 256, 512])
+    #flow_hidden_features = trial.suggest_categorical("flow_hidden_features", [64, 128, 256, 512])
     num_blocks = trial.suggest_int("num_blocks", 2, 6)
-    #flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [10, 20, 30, 40, 50])
+    #num_blocks = trial.suggest_int("num_blocks", 5, 8)
     #flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [16, 32, 64, 128])
     flow_training_batch_size = trial.suggest_categorical("flow_training_batch_size", [16])
     #num_filts = trial.suggest_int("num_filts", 1, 5) 
@@ -75,14 +87,21 @@ def objective(trial):
     hparams.filter_size = filter_size
 
     # instatiate model, optimizer and loss function
+    # initialize the new model filter weights from the pre-trained model
     print('instantiating model...')
-    c3nn = C3NN(hparams).to(device='cuda')
-    #c3nn = C3NN(in_channels=in_channels, num_filts=num_filts, filter_size=filter_size, order=order, absbeta=False).to(device='cuda')
+    c3nn = C3NN_w_std(hparams).to(device='cuda')
+    #c3nn = C3NN_Nptonly_Nptbn(hparams, prefix_filter_weights).to(device='cuda')
+    #embedding_c3nn = CombinedC3NN_Nptbn(pretrained_c3nn, c3nn)
 
     # Set up prior for sbi
     # The param here are Om, sigma8, w0, ns, Ob, H0, bary_Mc, bary_nu
-    lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
-    upper = np.array([0.5, 1.4, -0.33, 1.07, 0.06, 82.0, 15.0, 2.0])
+    #lower = np.array([0.1, 0.4, -2.0, 0.87, 0.03, 64.0, 12.0, -2.0])
+    #upper = np.array([0.5, 1.4, -0.33, 1.07, 0.06, 82.0, 15.0, 2.0])
+
+    # The param here are Om, sigma8, w0 only
+    lower = np.array([0.1, 0.4, -2.0])
+    upper = np.array([0.5, 1.4, -0.33])
+    
     prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hparams.device)
 
     #set up sbi architecture
@@ -104,9 +123,8 @@ def objective(trial):
 
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
-    #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_8D_25filter_5order_nozscorex_bn/trial_{trial.number}"
+    model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_3D_25filter_pix37_2order_nozscorex_bn_w_std_no_c1/trial_{trial.number}"
     #model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/c3nn_tuned_model_param_8D_40filter_3order_nozscorex_bn/trial_{trial.number}"
-    model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/bandlimit_0"
     os.makedirs(model_dir, exist_ok=True)
     with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
         cldpk.dump(density_estimator, f)
@@ -131,7 +149,7 @@ if __name__ == "__main__":
 
         # Load the saved study object and continue to tune hyperparameters
         try:
-            with open('Models/optuna_scan_filter40_pix37_order4_8dim_param_nozscorex_bn_perturbed2sets.pickle', 'rb') as f:
+            with open('Models/optuna_scan_filter25_pix37_order2_3dim_param_nozscorex_bn_w_std_no_c1.pickle', 'rb') as f:
                 study = pickle.load(f)
         except:
             print('No existing study found. Creating new study.')
@@ -155,7 +173,7 @@ if __name__ == "__main__":
 
     '''
     if database == 'pickle':
-        with open('Models/optuna_scan_filter40_pix37_order4_8dim_param_nozscorex_bn_perturbed2sets.pickle', 'wb') as f:
+        with open('Models/optuna_scan_filter25_pix37_order2_3dim_param_nozscorex_bn_w_std_no_c1.pickle', 'wb') as f:
             pickle.dump(study, f)
     '''
         

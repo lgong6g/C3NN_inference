@@ -3,7 +3,7 @@
 
 class hyperparameters():
     def __init__(self, learning_rate, flow_hidden_features, num_blocks, flow_num_transforms, flow_training_batch_size,
-                 in_channels, num_filts, filter_size, order, save=True, device='cuda'):
+                 in_channels, num_filts, filter_size, order, out_dim, save=True, device='cuda'):
 
         # Learning rate
         self.learning_rate = learning_rate
@@ -17,6 +17,7 @@ class hyperparameters():
         self.num_filts = num_filts
         self.filter_size = filter_size
         self.order = order
+        self.out_dim = out_dim
 
 
         #whether to save model
@@ -118,10 +119,11 @@ hparams = hyperparameters(learning_rate = 1e-3,  #1.4201803439538936e-4, # Learn
                           flow_num_transforms = 15,
                           flow_training_batch_size = 32,
                           in_channels = 4, # not optimzed
-                          num_filts = 40, # The number of filters to learn in our model
+                          num_filts = 25, # The number of filters to learn in our model
                           filter_size = 37, # The spatial length of the filters
-                          order = 4, # The highest order of correlation measured, not optimized
-                          save = False,  
+                          order = 2, # The highest order of correlation measured, not optimized
+                          out_dim = 150, # The output dimension from the final FC layer
+                          save = True,  
                           device = 'cuda'
                           )
 
