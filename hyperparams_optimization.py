@@ -15,9 +15,8 @@ import time, datetime
 import os
 #from main import *
 from hyperparameters import hparams
-from KDE_prior_estimation import KDEDistribution
-#from C3NN import C3NN
-from C3NN_w_std import C3NN, C3NN_Nptonly_Nptbn, CombinedC3NN_Nptbn
+from C3NN_extensions import C3NN_w_std, C3NN_Nptonly_Nptbn, CombinedC3NN_Nptbn
+from C3NN import C3NN
 from sbi.inference import SNPE_C
 from sbi import utils
 from sbi.utils.get_nn_models import posterior_nn
@@ -90,7 +89,7 @@ def objective(trial):
     # instatiate model, optimizer and loss function
     # initialize the new model filter weights from the pre-trained model
     print('instantiating model...')
-    c3nn = C3NN(hparams).to(device='cuda')
+    c3nn = C3NN_w_std(hparams).to(device='cuda')
     #c3nn = C3NN_Nptonly_Nptbn(hparams, prefix_filter_weights).to(device='cuda')
     #embedding_c3nn = CombinedC3NN_Nptbn(pretrained_c3nn, c3nn)
 
@@ -125,6 +124,7 @@ def objective(trial):
     #if torch.cuda.is_available():
     #    torch.cuda.empty_cache()
     model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_3D_25filter_pix37_2order_nozscorex_bn_w_std_no_c1/trial_{trial.number}"
+    #model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/c3nn_tuned_model_param_8D_40filter_3order_nozscorex_bn/trial_{trial.number}"
     os.makedirs(model_dir, exist_ok=True)
     with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
         cldpk.dump(density_estimator, f)

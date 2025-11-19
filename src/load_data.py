@@ -24,7 +24,6 @@ def load_data_wide(hparams):
     training_data = np.concatenate([training_data1, training_data2], axis=0)
     training_data = torch.tensor(training_data, dtype=torch.float32).to(device='cuda')
 
-    training_parameters = np.load('CosmoGrid_params_wide_perturbed.npz').files
     param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
     training_parameters = np.array([np.load('CosmoGrid_params_wide_perturbed.npz')[par] for par in param_names]).T
     training_parameters = np.concatenate([training_parameters[0,:,:], training_parameters[1,:,:]], axis=0)

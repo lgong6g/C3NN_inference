@@ -230,7 +230,7 @@ class Mean2d(nn.Module):
 
 """ The full CCNN is Input -> NonlinearConv -> Spatial Avg -> BatchNorm -> Logistic. The way it is constructed
     here assumes a binary classification task, but this can be extended to the multiclass case."""
-class C3NN(nn.Module):
+class C3NN_w_std(nn.Module):
     def __init__(self, hparams, absbeta=False):
         super().__init__()
         self.in_channels = hparams.in_channels
