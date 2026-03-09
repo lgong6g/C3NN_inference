@@ -1,13 +1,119 @@
-# Cosmological Convolutional Neural Network (C3NN)
-We introduce the Cosmological Correlator Convolutional Neural Network (C3NN) for cosmological analyses, adapted from the model initially proposed by Miles et al. (2021) in studies of correlated quantum matter. The output of this model can be explicitly related via a one-to-one correspondence to different orders of cosmological N-point correlation functions (NPCFs). The codes shown here are used in the paper: https://iopscience.iop.org/article/10.3847/1538-4357/ad582e
+# C3NN-SBI: Physics-Informed Simulation-Based Inference with Interpretable NPCF Summaries
 
-The model architecture we used in the paper for the binary classification task is shown below ![below](repo_images/ccnn_architecture.png) 
+[![arXiv:2402.09526](https://img.shields.io/badge/arXiv-2402.09526-b31b1b.svg)](https://arxiv.org/abs/2402.09526)
+[![arXiv:2602.16768](https://img.shields.io/badge/arXiv-2602.16768-b31b1b.svg)](https://arxiv.org/abs/2602.16768)
 
-It is composed of two parts. The first part comprises a CNN-based N-point moment map generator that outputs a series of statistics, which we call N-point moments and have an explicit mathematical connection to traditional NPCFs that we are familiar within cosmology. In this part of the model we first perform a single convolution on the input data and then without applying a nonlinear transformation as the usual practice, we construct moment maps directly from the initial convolved map through a recursive procedure. We adapt the filters of the convolution to be rotationally invariant (Cesa et al. 2022) such that the output remains stationary for arbitrary rotations of the input. This benefits the training data efficiency of our analyses and the interpretation of the trained filter weights. The second part of the model, which is a moment map-based classifier, exploits these output moment maps to perform classification tasks by passing them through consecutive layers of spatial averaging, batch normalization, and logistic regression. We optimize all hyperparameters of C3NN using the package Optuna.
+This repository contains code for **C3NN-SBI**, a simulation-based inference pipeline that uses the Cosmological Correlator Convolutional Neural Network (C3NN) as an interpretable summary extractor for weak-lensing convergence maps.
 
-The interpretability of C3NN mainly exists in the following three aspects: (i) the output moment of a specific order N can be mathematically expressed in terms of the correlation function at the same order. This is unlike the often hard-to-interpret summary statistics extracted by conventional CNN models, (ii) through a regularization path analysis (Efron et al. 2004; Tang et al. 2014), which is integrated into the classifier part of our model, we can have a quantitative understanding of the relative importance of the different order moments in contributing to the model’s classification power. Moreover, (iii) we can investigate the trained filter weights by connecting individual pixels to form the configuration of any given NPCF. The filter weights for a given NPCF configuration directly allow us to rank different correlation function configurations within a given moment.
+The core idea is to learn summaries that are explicitly tied to N-point statistics while still training end-to-end with neural density estimators.
 
-For a demonstration of the above discussion, please refer to the notebook in the directory C3NN_binary_classification. Besides, here we also have some preliminary codes about replacing the classification part with an inference network and use C3NN as an inference model to work on some simulation-based inference (SBI) tasks.
+Paper (current project): **arXiv:2602.16768v1** (February 18, 2026), included as [`2602.16768v1.pdf`](2602.16768v1.pdf).
 
-# Hyperparameter Optimzation
-Running [main.py](main.py) will load a set of hyperparameters from [hyperparameters.py](hyperparameters.py) and train a model. For automized hyperparameter optimization, set a range for the parameters in [hyperparams_optimization.py](hyperparams_optimization.py) and run. Models are currently not saved but are reproducible via retraining.
+## Citation Request
+
+If you use this codebase, please cite the following papers:
+
+1. https://arxiv.org/abs/2011.03474
+2. https://arxiv.org/abs/2402.09526
+3. https://arxiv.org/abs/2602.16768
+
+## Main Results (from the paper)
+
+For the 3-parameter inference setting `(Omega_m, sigma_8, w_0)`:
+
+1. Information improves monotonically from 2nd to 4th order C3NN summaries.
+2. Relative improvements (single withheld realization):
+   - `{c1,c2,c3}` vs `{c1,c2}`: `Omega_m +27.92%`, `sigma_8 +28.44%`, `w_0 +19.11%`, `FoM +96.59%`
+   - `{c1,c2,c3,c4}` vs `{c1,c2,c3}`: `Omega_m +12.89%`, `sigma_8 +19.99%`, `w_0 +3.68%`, `FoM +34.38%`
+3. Over 200 fiducial realizations, median FoM gains are:
+   - `+75.30%` when adding `c3` on top of `c2`
+   - `+30.69%` when adding `c4` on top of `c3`
+4. Hybrid and NLE extensions:
+   - Hybrid C3NN vs 2PCF: `FoM +7.29%`
+   - NLE (larger simulation budget) vs NPE: `FoM +347.73%`
+5. Validation with phase-reshuffled maps shows higher-order model gains collapse to the 2nd-order baseline, consistent with genuine higher-order information extraction.
+
+## Repository Structure
+
+- `main.py`: main C3NN + SNPE training entrypoint.
+- `hyperparams_optimization.py`: Optuna loop around `main.py`.
+- `main_cnn.py`: baseline CNN embedding + SNPE comparison.
+- `C3NN_NLE.py`: retrain likelihood model (NLE) on learned summaries.
+- `C3NN_NLE_sample_only.py`: posterior sampling/plotting from trained NLE.
+- `C3NN_NLE_coverage.py`: coverage/SBC-style diagnostics.
+- `src/C3NN_extensions.py`: C3NN model variants used by `main.py`.
+- `src/load_data.py`: data loading helpers.
+- `hyperparameters.py`: default C3NN and CNN hyperparameter settings.
+
+## Data Assumptions
+
+The current scripts use project-specific absolute paths (e.g. `/project/ag-weller/...`) for map data and model output.
+
+Before running, update paths in:
+
+- `src/load_data.py`
+- `main.py`
+- `main_cnn.py`
+- `C3NN_NLE*.py`
+
+## Usage Examples
+
+### 1) Quick smoke test (short training)
+
+```bash
+python main.py --test
+```
+
+### 2) Train C3NN + SNPE (default config)
+
+```bash
+python main.py
+```
+
+### 3) Run Optuna hyperparameter scan
+
+```bash
+python hyperparams_optimization.py
+```
+
+Short scan for code-path testing:
+
+```bash
+python hyperparams_optimization.py --test
+```
+
+### 4) Train CNN baseline + SNPE
+
+```bash
+python main_cnn.py
+```
+
+### 5) Train NLE on learned summaries
+
+```bash
+python C3NN_NLE.py
+```
+
+### 6) Sample and plot posteriors from NLE outputs
+
+```bash
+python C3NN_NLE_sample_only.py
+```
+
+### 7) Coverage / SBC-like checks
+
+```bash
+python C3NN_NLE_coverage.py
+```
+
+### 8) Measure 2PCF products used for comparisons
+
+```bash
+python measure_2pcf.py
+```
+
+## Notes
+
+1. Default model selection is configured in `hyperparameters.py` (`hparams.model`).
+2. Most training scripts expect CUDA and large memory footprints.
+3. Some scripts are analysis-stage and require previously saved checkpoints/chains.
