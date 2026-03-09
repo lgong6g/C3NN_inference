@@ -1,11 +1,9 @@
 import os
 import sys
 sys.path.append('./src')
-import pickle
 from hyperparameters import hparams, hparams_cnn
 from CNN import CNNEmbedding
-from CNN_resnet import ResidualBlock, CNNResEmbedding
-from load_data import load_data_wide
+from load_data import load_data_wide, load_data_narrow
 from sbi.inference import SNPE_C
 from sbi import utils
 from sbi.utils.get_nn_models import posterior_nn
@@ -19,6 +17,19 @@ import cloudpickle as cpk
 
 
 def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True):
+    """Train the baseline CNN embedding with SNPE.
+
+    Args:
+        hparams: Flow and training hyperparameters.
+        hparams_cnn: CNN architecture hyperparameters.
+        training_parameters: Tensor of parameters, shape ``[n_cosmologies, n_params]``.
+        training_data: Tensor of maps, shape
+            ``[n_cosmologies, n_maps, n_channels, height, width]``.
+        verbose: Whether to print the best validation metric.
+
+    Returns:
+        Tuple ``(val_loss, density_estimator, inference)``.
+    """
 
     # Make runs repeatable
     random_seed = 1750
@@ -35,8 +46,8 @@ def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True)
 
     # instatiate model, optimizer and loss function
     print('instantiating model...')
-    #cnn = CNNEmbedding(hparams_cnn).to(device='cuda')
-    cnn = CNNResEmbedding().to(device='cuda')
+    cnn = CNNEmbedding(hparams_cnn).to(device=hparams.device)
+    #cnn = CNNResEmbedding().to(device='cuda')
     
     # Set up prior for sbi
     # The param here are Om, sigma8, w0, ns, Ob, H0, bary_Mc, bary_nu
@@ -62,12 +73,12 @@ def main(hparams, hparams_cnn, training_parameters, training_data, verbose=True)
     if hparams_cnn.save:
         #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/cnn-sbi_models/model_{hparams_cnn.name_model()}"
         #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/cnn-sbi_models/model_cnn_resnet"
-        model_dir = f"/project/ag-weller/Kai.Lehman/C3NN_Models/CNN/"
+        model_dir = "/project/ag-weller/Kai.Lehman/C3NN_Models/CNN/"
         os.makedirs(model_dir, exist_ok=True)
-        with open(os.path.join(model_dir, "density_estimator.pickle"), "wb") as f:
+        with open(os.path.join(model_dir, "widenarrow_density_estimator.pickle"), "wb") as f:
             cpk.dump(density_estimator, f)
 
-        with open(os.path.join(model_dir, "inference.pickle"), "wb") as f:
+        with open(os.path.join(model_dir, "wide_narrow_inference.pickle"), "wb") as f:
             cpk.dump(inference, f)
         print('Model saved')
     else:
@@ -87,6 +98,10 @@ if __name__ == "__main__":
 
     training_parameters, training_data = load_data_wide(hparams)
     #training_parameters, training_data = load_data_narrow(hparams)
+    training_parameters_narrow, training_data_narrow = load_data_narrow(hparams)
+    training_parameters = torch.cat((training_parameters,training_parameters_narrow))
+    training_data = torch.cat((training_data,training_data_narrow))
+
     main(hparams, hparams_cnn, training_parameters, training_data)
 
     print("Finished. Time elapsed:",datetime.timedelta(seconds=time.time()-time_ini))

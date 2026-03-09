@@ -1,7 +1,7 @@
 import sys
 sys.path.append('./src')
 from hyperparameters import hparams
-from C3NN_extensions import C3NN_w_std, C3NN_Nptonly_Nptbn, CombinedC3NN_Nptbn, C3NN_hybrid
+from C3NN_extensions import C3NN_w_std, C3NN_hybrid, C3NN_w_std_fixed_dim
 from C3NN import C3NN
 from load_data import load_data_wide, load_data_hybrid
 from sbi.inference import SNPE_C
@@ -16,8 +16,22 @@ import cloudpickle as cpk
 import argparse
 
 
-
 def main(hparams, training_parameters, training_data, verbose=True, test = False):
+    """Train the C3NN+SNPE pipeline for a single hyperparameter configuration.
+
+    Args:
+        hparams: Hyperparameter container from ``hyperparameters.py``.
+        training_parameters: Tensor of simulation parameters with shape
+            ``[n_cosmologies, n_params]``.
+        training_data: Tensor of map data with shape
+            ``[n_cosmologies, n_maps, n_channels, height, width]``.
+        verbose: Whether to print the best validation log-probability.
+        test: If ``True``, run a short training schedule for smoke testing.
+
+    Returns:
+        Tuple ``(val_loss, density_estimator, inference)`` where ``val_loss``
+        is the best validation log-probability reported by sbi.
+    """
 
     # Make runs repeatable
     random_seed = 1750
@@ -31,11 +45,13 @@ def main(hparams, training_parameters, training_data, verbose=True, test = False
     # instatiate model, optimizer and loss function
     print('instantiating model...')
     if hparams.model == 'default':
-        c3nn = C3NN(hparams).to(device='cuda')
+        c3nn = C3NN(hparams).to(device=hparams.device)
     elif hparams.model == 'w_std':
-        c3nn = C3NN_w_std(hparams).to(device='cuda')
+        c3nn = C3NN_w_std(hparams).to(device=hparams.device)
     elif hparams.model == 'hybrid':
-        c3nn = C3NN_hybrid(hparams).to(device='cuda')
+        c3nn = C3NN_hybrid(hparams).to(device=hparams.device)
+    elif hparams.model == 'fixed_dim':
+        c3nn = C3NN_w_std_fixed_dim(hparams).to(device=hparams.device)
     else:
         raise NotImplementedError(f"Name '{hparams.model}' not implemented.")
 
@@ -67,13 +83,13 @@ def main(hparams, training_parameters, training_data, verbose=True, test = False
         #model_dir = f"/e/ocean1/users/lgong/C3NN_inference/c3nn-sbi_models/c3nn_tuned_model_param_3D_25filter_pix37_2order_nozscorex_bn_w_std_no_c1/trial_{trial.number}"
         #model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/c3nn_tuned_model_param_8D_40filter_3order_nozscorex_bn/trial_{trial.number}"
         if test:
-            model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models/codetesting"
+            model_dir = "/project/ag-weller/Kai.Lehman/C3NN_Models/codetesting"
         else:
-            model_dir = f"/home/k/Kai.Lehman/C3NN_inference/Models"
+            model_dir = "/project/ag-weller/Kai.Lehman/C3NN_Models/"
         #os.makedirs(model_dir, exist_ok=True)
-        with open(f"{model_dir}/{hparams.name_model()}_inference.pkl", "wb") as handle:
+        with open(f"{model_dir}/{hparams.name_model()}_widenarrow_fixed_dim_inference.pkl", "wb") as handle:
             cpk.dump(inference, handle)
-        with open(f"{model_dir}/{hparams.name_model()}_density_estimator.pkl", "wb") as handle:
+        with open(f"{model_dir}/{hparams.name_model()}_widenarrow_fixed_dim_density_estimator.pkl", "wb") as handle:
             cpk.dump(density_estimator, handle)
         print('Model saved')
     else:

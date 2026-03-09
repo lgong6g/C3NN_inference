@@ -1,21 +1,15 @@
 import sys
 sys.path.append('./src')
-from load_data import load_data_wide, load_data_full, load_data_narrow
-#from load_data import load_data_wide_noaverage
+from load_data import load_data_wide, load_data_narrow, load_data_hybrid
 import optuna
 import pickle
-import cloudpickle as cldpk
 import numpy as np
 import torch
 import random
 import time, datetime
 import os
-from main import *
+from main import main
 from hyperparameters import hparams
-from sbi.inference import SNPE_C
-from sbi import utils
-from sbi.utils.get_nn_models import posterior_nn
-from torch import from_numpy
 import argparse
 
 parser = argparse.ArgumentParser(description="My program description")
@@ -62,6 +56,11 @@ if args.test:
 
 # Objective function to minimize
 def objective(trial):
+    """Run one Optuna trial by updating ``hparams`` and training ``main``.
+
+    The trial score is the best validation log-probability returned by the
+    sbi inference object.
+    """
 
     # Hyperparameters to optimize
     flow_learning_rate = trial.suggest_float("flow_learning_rate", 1e-5, 1e-2, log=True)
@@ -88,7 +87,7 @@ def objective(trial):
     print('filter_size:  {}'.format(filter_size))
 
     # Hyperparameters to be optimized
-    hparams.flow_learning_rate = flow_learning_rate
+    hparams.learning_rate = flow_learning_rate
     hparams.flow_num_transforms = flow_num_transforms
     hparams.flow_hidden_features = flow_hidden_features
     hparams.num_blocks = num_blocks

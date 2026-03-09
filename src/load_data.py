@@ -3,19 +3,23 @@ import torch
 
 
 def load_data_wide(hparams):
+    """Load the wide-grid training subset used for NPE training.
 
-    training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
-    #training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy')
+    Applies the fixed train split from ``training_set_1000_index.npy`` and
+    returns tensors on ``hparams.device``.
+    """
+
+    #training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
+    training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy')
     training_index = np.load('training_set_1000_index.npy') # perform a 1000/250 split for the training and SBC test
     training_data = training_data[training_index]
-    training_data = torch.tensor(training_data, dtype=torch.float32).to(device='cuda')
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
 
-    training_parameters = np.load('CosmoGrid_params.npz').files
     #param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
     param_names = ['Om', 'sigma8', 'w0']
     training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][:1250] for par in param_names]).T
     training_parameters = training_parameters[training_index]
-    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device='cuda')
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
     
     """
     # For reading in different perturbed data sets
@@ -23,70 +27,132 @@ def load_data_wide(hparams):
     training_data2 = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization1.npy')
     #training_data3 = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization2.npy')
     training_data = np.concatenate([training_data1, training_data2], axis=0)
-    training_data = torch.tensor(training_data, dtype=torch.float32).to(device='cuda')
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
 
     param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
     training_parameters = np.array([np.load('CosmoGrid_params_wide_perturbed.npz')[par] for par in param_names]).T
     training_parameters = np.concatenate([training_parameters[0,:,:], training_parameters[1,:,:]], axis=0)
-    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device='cuda')
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
     """
     
     return training_parameters, training_data
 
 def load_data_narrow(hparams):
+    """Load the narrow-grid cosmologies used for extended training sets."""
 
     #training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')[50:]
-    training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy')[50:]
-    training_data = torch.tensor(training_data, dtype=torch.float32).to(device='cuda')
+    training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy')#[50:]
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
 
-    training_parameters = np.load('CosmoGrid_params.npz').files
-    param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
-    training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][1300:] for par in param_names]).T
-    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device='cuda')
+    param_names = ['Om', 'sigma8', 'w0']
+    #training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][1300:] for par in param_names]).T
+    training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][1250:] for par in param_names]).T
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
 
     return training_parameters, training_data
 
+def load_data_wide_realization1(hparams):
+    """Load wide-grid data from realization 1 without sub-selection."""
+
+    #training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
+    training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization1.npy')
+    training_data = training_data#[training_index]
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
+
+    #param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
+    param_names = ['Om', 'sigma8', 'w0']
+    training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][:1250] for par in param_names]).T
+    training_parameters = training_parameters#[training_index]
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
+    
+    
+    return training_parameters, training_data
+
+def load_data_narrow_realization1(hparams):
+    """Load narrow-grid data from realization 1."""
+
+    #training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')[50:]
+    training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization1.npy')#[50:]
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
+
+    param_names = ['Om', 'sigma8', 'w0']
+    #training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][1300:] for par in param_names]).T
+    training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][1250:] for par in param_names]).T
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
+
+    return training_parameters, training_data
+
+def load_data_wide_realization2(hparams):
+    """Load wide-grid data from realization 2 without sub-selection."""
+
+    #training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
+    training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization2.npy')
+    training_data = training_data#[training_index]
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
+
+    #param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
+    param_names = ['Om', 'sigma8', 'w0']
+    training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][:1250] for par in param_names]).T
+    training_parameters = training_parameters#[training_index]
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
+    
+    
+    return training_parameters, training_data
+
+def load_data_narrow_realization2(hparams):
+    """Load narrow-grid data from realization 2."""
+
+    #training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')[50:]
+    training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization2.npy')#[50:]
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
+
+    param_names = ['Om', 'sigma8', 'w0']
+    #training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][1300:] for par in param_names]).T
+    training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][1250:] for par in param_names]).T
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
+
+    return training_parameters, training_data
 def load_data_full(hparams):
+    """Load concatenated wide+narrow realization-0 data from legacy paths."""
 
     training_data1 = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
     training_data2 = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_narrow_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
     training_data = np.concatenate([training_data1, training_data2], axis=0)   
-    training_data = torch.tensor(training_data, dtype=torch.float32).to(device='cuda')
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
 
-    training_parameters = np.load('CosmoGrid_params.npz').files
-    param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
+    param_names = ['Om', 'sigma8', 'w0']
     training_parameters = np.array([np.load('CosmoGrid_params.npz')[par] for par in param_names]).T
-    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device='cuda')
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
 
     return training_parameters, training_data
 
 def load_data_wide_noaverage(hparams):
+    """Load wide-grid maps flattened over realizations (legacy helper)."""
 
     training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
     training_index = np.load('training_set_1000_index.npy') # perform a 1000/250 split for the training and SBC test
     training_data = training_data[training_index]
     training_data = training_data.reshape(-1, 4, 50, 50)
-    training_data = torch.tensor(training_data, dtype=torch.float32).to(device='cuda')
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
 
-    training_parameters = np.load('CosmoGrid_params.npz').files
     #param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
     param_names = ['Om', 'sigma8', 'w0']
     training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][:1250] for par in param_names]).T
     training_parameters = training_parameters[training_index]
     training_parameters = np.repeat(training_parameters, 150, axis=0)
-    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device='cuda')
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
 
     return training_parameters, training_data
 
 
 def load_data_hybrid(hparams):
+    """Load hybrid inputs by appending compressed 2PCF features as channel 5."""
 
     #training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy')
     training_data = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_50_by_50pixels_6_by_6deg_no_smooth_4_des_zsbin_gnom_projection.npy')
     training_data = torch.tensor(training_data, dtype=torch.float32)[:1250].to(device=hparams.device)
     #training_data = torch.tensor(training_data, dtype=torch.float32)
 
-    training_parameters = np.load('CosmoGrid_params.npz').files
     param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
     training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][:1250] for par in param_names]).T
     training_parameters = torch.tensor(training_parameters[:,:3], dtype=torch.float32).to(device=hparams.device)
@@ -107,17 +173,17 @@ def load_data_hybrid(hparams):
     return training_parameters, maps_and_2pt
 
 def load_data_wide_LSST(hparams):
+    """Load LSST-scale (87x87) wide-grid maps from legacy storage."""
 
     training_data = np.load('/e/ocean1/users/lgong/CCNN/cosmogrid/kappa_noiseless_1250_wide_grid_cosmologies_150_maps_87_by_87pixels_10_by_10deg_no_smooth_4_des_zsbin_gnom_projection_realization0.npy')
     training_index = np.load('training_set_1000_index.npy') # perform a 1000/250 split for the training and SBC test
     training_data = training_data[training_index]
-    training_data = torch.tensor(training_data, dtype=torch.float32).to(device='cuda')
+    training_data = torch.tensor(training_data, dtype=torch.float32).to(device=hparams.device)
 
-    training_parameters = np.load('CosmoGrid_params.npz').files
     #param_names = ['Om', 'sigma8', 'w0', 'ns', 'Ob', 'H0', 'bary_Mc', 'bary_nu']
     param_names = ['Om', 'sigma8', 'w0']
     training_parameters = np.array([np.load('CosmoGrid_params.npz')[par][:1250] for par in param_names]).T
     training_parameters = training_parameters[training_index]
-    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device='cuda')
+    training_parameters = torch.tensor(training_parameters, dtype=torch.float32).to(device=hparams.device)
 
     return training_parameters, training_data

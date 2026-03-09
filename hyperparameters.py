@@ -2,8 +2,11 @@
 
 
 class hyperparameters():
+    """Container for C3NN embedding + flow training hyperparameters."""
+
     def __init__(self, learning_rate, flow_hidden_features, num_blocks, flow_num_transforms, flow_training_batch_size,
                  in_channels, num_filts, filter_size, order, out_dim, save=True, device='cuda', model='w_std'):
+        """Initialize hyperparameters for C3NN embedding and density estimator."""
 
         # Learning rate
         self.learning_rate = learning_rate
@@ -31,6 +34,7 @@ class hyperparameters():
 
     # Name of the model and hyperparameters
     def name_model(self):
+        """Return a deterministic filename-friendly model identifier."""
         return "order_{:d}_filters_{:d}_size_{:d}_lr_{:.2e}_features_{:d}_blocks_{:d}_transforms_{:d}_batchsize_{:d}".format(self.order,self.num_filts,self.filter_size,self.learning_rate, self.flow_hidden_features, self.num_blocks, self.flow_num_transforms, self.flow_training_batch_size)
 
 
@@ -74,6 +78,7 @@ class hyperparameters_cnn:
         save=True,
         device="cuda",
     ):
+        """Initialize hyperparameters for the baseline CNN embedding network."""
         # Training hparams
         self.learning_rate = float(learning_rate)
         # CNN hparams
@@ -94,6 +99,7 @@ class hyperparameters_cnn:
         self.device = str(device)
     
     def name_model(self):
+        """Return a deterministic filename-friendly CNN model identifier."""
         total_blocks = self.num_blocks + self.num_blocks_nopool
         return (
             "cnn_blocksP_{:d}_blocksNP_{:d}_total_{:d}_basefilts_{:d}_ks_{:d}_"
@@ -117,26 +123,26 @@ class hyperparameters_cnn:
 #--- HYPERPARAMETER CHOICES ---#
 
 hparams = hyperparameters(learning_rate = 1e-3,  #1.4201803439538936e-4, # Learning rate
-                          flow_hidden_features = 128,
-                          num_blocks = 4,
-                          flow_num_transforms = 15,
-                          flow_training_batch_size = 32,
+                          flow_hidden_features = 64,
+                          num_blocks = 5,
+                          flow_num_transforms = 5,
+                          flow_training_batch_size = 16,
                           in_channels = 4, # not optimzed
-                          num_filts = 25, # The number of filters to learn in our model
+                          num_filts = 40, # The number of filters to learn in our model
                           filter_size = 37, # The spatial length of the filters
-                          order = 2, # The highest order of correlation measured, not optimized
-                          out_dim = 150, # The output dimension from the final FC layer
+                          order = 4, # The highest order of correlation measured, not optimized
+                          out_dim = 20, # The output dimension from the final FC layer
                           save = True,  
                           device = 'cuda',
-                          model = 'w_std'  # default, w_std or hybrid
+                          model = 'fixed_dim'  # default, w_std or hybrid
                           )
 
 
 hparams_cnn = hyperparameters_cnn(learning_rate = 1e-4,
                                   in_channels = 4,
-                                  num_blocks = 4,
+                                  num_blocks = 2,
                                   num_blocks_nopool = 2,
-                                  num_filts = 32,
+                                  num_filts = 20,
                                   filter_size = 7,
                                   bottleneck = 32,
                                   use_batchnorm = True,

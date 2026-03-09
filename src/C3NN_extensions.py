@@ -231,7 +231,13 @@ class Mean2d(nn.Module):
 """ The full CCNN is Input -> NonlinearConv -> Spatial Avg -> BatchNorm -> Logistic. The way it is constructed
     here assumes a binary classification task, but this can be extended to the multiclass case."""
 class C3NN_w_std(nn.Module):
+    """C3NN embedding that concatenates per-map mean and std summaries.
+
+    Output dimension is ``2 * num_filts * order``.
+    """
+
     def __init__(self, hparams, absbeta=False):
+        """Build the C3NN summary network with optional absolute beta usage."""
         super().__init__()
         self.in_channels = hparams.in_channels
         self.num_filts = hparams.num_filts
@@ -251,11 +257,13 @@ class C3NN_w_std(nn.Module):
         self.parallel = torch.vmap(self.forward_single, in_dims=0, out_dims=0)
     
     def forward_single(self, x):    
+        """Encode a single map into moment summaries before realization pooling."""
         x = self.corr_conv(x)
         x = self.spatial_mean(x)
         return x
     
     def forward(self, x, chop=False):
+        """Encode ``x`` and return concatenated mean/std summaries per cosmology."""
         x = self.parallel(x)
         mean = torch.mean(x, 1)
         std = torch.std(x, 1)
@@ -268,7 +276,10 @@ class C3NN_w_std(nn.Module):
 
 """ Same as C3NN_w_std but with an additional learnable compression to hparams.out_dim"""
 class C3NN_w_std_fixed_dim(nn.Module):
+    """C3NN mean/std summary with an additional learnable linear compression."""
+
     def __init__(self, hparams, absbeta=False):
+        """Build the compressed C3NN summary network."""
         super().__init__()
         self.in_channels = hparams.in_channels
         self.num_filts = hparams.num_filts
@@ -291,11 +302,13 @@ class C3NN_w_std_fixed_dim(nn.Module):
         self.linear = nn.Linear(2*hparams.num_filts * hparams.order, hparams.out_dim)
     
     def forward_single(self, x):    
+        """Encode a single map into moment summaries before realization pooling."""
         x = self.corr_conv(x)
         x = self.spatial_mean(x)
         return x
     
     def forward(self, x, chop=False):
+        """Encode ``x`` and project the summary to ``hparams.out_dim``."""
         x = self.parallel(x)
         mean = torch.mean(x, 1)
         std = torch.std(x, 1)
@@ -310,7 +323,10 @@ class C3NN_w_std_fixed_dim(nn.Module):
 
 
 class C3NN_Nptonly(nn.Module):
+    """C3NN variant that keeps only the highest-order moment block."""
+
     def __init__(self, hparams, absbeta=False):
+        """Build a C3NN summary extractor restricted to selected N-point features."""
         super().__init__()
         self.in_channels = hparams.in_channels
         self.num_filts = hparams.num_filts
@@ -331,11 +347,13 @@ class C3NN_Nptonly(nn.Module):
         self.parallel = torch.vmap(self.forward_single, in_dims=0, out_dims=0)
     
     def forward_single(self, x):    
+        """Encode a single map into moment summaries before realization pooling."""
         x = self.corr_conv(x)
         x = self.spatial_mean(x)
         return x
     
     def forward(self, x, chop=False):
+        """Encode ``x`` and return only selected N-point mean/std features."""
         x = self.parallel(x)
         mean = torch.mean(x, 1)[:,self.Npt_selection:]
         std = torch.std(x, 1)[:,self.Npt_selection:]
@@ -349,7 +367,10 @@ class C3NN_Nptonly(nn.Module):
 
 
 class C3NN_Nptonly_Nptbn(nn.Module):
+    """Highest-order-only C3NN with preloaded filter initialization and BN."""
+
     def __init__(self, hparams, init_weight, absbeta=False):
+        """Build the N-point-selected C3NN initialized from existing filters."""
         super().__init__()
         self.in_channels = hparams.in_channels
         self.num_filts = hparams.num_filts
@@ -371,11 +392,13 @@ class C3NN_Nptonly_Nptbn(nn.Module):
         self.parallel = torch.vmap(self.forward_single, in_dims=0, out_dims=0)
     
     def forward_single(self, x):    
+        """Encode a single map into moment summaries before realization pooling."""
         x = self.corr_conv(x)
         x = self.spatial_mean(x)
         return x
     
     def forward(self, x, chop=False):
+        """Encode ``x`` and return highest-order selected mean/std summaries."""
         x = self.parallel(x)
         mean = torch.mean(x, 1)[:,self.Npt_selection:]
         std = torch.std(x, 1)[:,self.Npt_selection:]
@@ -389,7 +412,10 @@ class C3NN_Nptonly_Nptbn(nn.Module):
 
 
 class CombinedC3NN(nn.Module):
+    """Concatenate a frozen pretrained C3NN output with a trainable C3NN output."""
+
     def __init__(self, pretrained_c3nn, new_c3nn, total_dim):
+        """Build a two-branch C3NN combiner with optional post-concatenation BN."""
         super().__init__()
         pretrained_c3nn.bn = nn.Identity()
         new_c3nn.bn = nn.Identity()
@@ -400,6 +426,7 @@ class CombinedC3NN(nn.Module):
         self.flag = False
 
     def forward(self, x):
+        """Return concatenated summaries from pretrained and new C3NN branches."""
         with torch.no_grad():   # freeze pretrained if desired
             out1 = self.pretrained_c3nn(x)
         out2 = self.new_c3nn(x)
@@ -412,12 +439,16 @@ class CombinedC3NN(nn.Module):
 
 
 class CombinedC3NN_Nptbn(nn.Module):
+    """Concatenate pretrained and new C3NN outputs without batch normalization."""
+
     def __init__(self, pretrained_c3nn, new_c3nn):
+        """Build the minimal two-branch concatenation module."""
         super().__init__()
         self.pretrained_c3nn = pretrained_c3nn
         self.new_c3nn = new_c3nn
 
     def forward(self, x):
+        """Return concatenated summaries from pretrained and new C3NN branches."""
         with torch.no_grad():   # freeze pretrained if desired
             out1 = self.pretrained_c3nn(x)
         out2 = self.new_c3nn(x)
@@ -427,7 +458,10 @@ class CombinedC3NN_Nptbn(nn.Module):
 
         
 class C3NN_nopadding(nn.Module):
+    """C3NN summary network using valid convolutions (no spatial padding)."""
+
     def __init__(self, hparams, absbeta=False):
+        """Build the no-padding C3NN embedding variant."""
         super().__init__()
         self.in_channels = hparams.in_channels
         self.num_filts = hparams.num_filts
@@ -447,11 +481,13 @@ class C3NN_nopadding(nn.Module):
         self.parallel = torch.vmap(self.forward_single, in_dims=0, out_dims=0)
     
     def forward_single(self, x):    
+        """Encode a single map into moment summaries before realization pooling."""
         x = self.corr_conv(x)
         x = self.spatial_mean(x)
         return x
     
     def forward(self, x, chop=False):
+        """Encode ``x`` and return concatenated mean/std summaries."""
         x = self.parallel(x)
         mean = torch.mean(x, 1)
         std = torch.std(x, 1)
@@ -464,7 +500,10 @@ class C3NN_nopadding(nn.Module):
 
 
 class C3NN_hybrid(nn.Module):
+    """Hybrid C3NN that augments C3NN summaries with compressed 2PCF features."""
+
     def __init__(self, hparams, absbeta=False):
+        """Build the hybrid C3NN embedding for map+2PCF-channel inputs."""
         super().__init__()
         self.in_channels = hparams.in_channels
         self.num_filts = hparams.num_filts
@@ -484,11 +523,13 @@ class C3NN_hybrid(nn.Module):
         self.parallel = torch.vmap(self.forward_single, in_dims=0, out_dims=0)
     
     def forward_single(self, x):    
+        """Encode a single map into moment summaries before realization pooling."""
         x = self.corr_conv(x)
         x = self.spatial_mean(x)
         return x
     
     def forward(self, x, chop=False):
+        """Encode maps and concatenate with external compressed 2PCF statistics."""
         compressed_2pt = x[:,:,-1].mean(1)[:,0,:8]
         x = self.parallel(x[:,:,:-1])
         mean = torch.mean(x, 1)

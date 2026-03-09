@@ -1,11 +1,20 @@
 import torch
-from torch.distributions import Distribution, Normal
+from torch.distributions import Distribution
 import math
 import numpy as np
 
 
 class KDEDistribution(Distribution):
+    """Kernel-density prior with internal standardization of input samples."""
+
     def __init__(self, samples, bandwidth=0.1, device='cpu'):
+        """Create a Gaussian KDE distribution from sample points.
+
+        Args:
+            samples: Tensor or ndarray of shape ``[N, D]``.
+            bandwidth: Isotropic Gaussian kernel width in standardized units.
+            device: Torch device where computations are performed.
+        """
         self.device = device
         if isinstance(samples, np.ndarray):
             samples = torch.tensor(samples, dtype=torch.float32, device=device)
@@ -25,12 +34,15 @@ class KDEDistribution(Distribution):
         super().__init__(validate_args=False)
 
     def standardize(self, x):
+        """Map raw parameters to standardized coordinates."""
         return (x - self.sample_mean) / self.sample_std
 
     def destandardize(self, x):
+        """Map standardized coordinates back to original parameter space."""
         return x * self.sample_std + self.sample_mean
 
     def sample(self, sample_shape=torch.Size()):
+        """Draw samples by perturbing empirical points with Gaussian noise."""
         if isinstance(sample_shape, tuple):
             n_samples = int(torch.tensor(sample_shape).prod().item())
         else:
@@ -42,6 +54,7 @@ class KDEDistribution(Distribution):
         return self.destandardize(standardized_samples)
 
     def log_prob(self, x):
+        """Evaluate KDE log-density for input points ``x``."""
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float32, device=self.device)
         else:
@@ -54,4 +67,3 @@ class KDEDistribution(Distribution):
         kernel = torch.exp(-0.5 * dist_sq / self.bandwidth**2)
         norm = (2 * math.pi * self.bandwidth ** 2) ** (self.D / 2)
         return torch.log(kernel.mean(-1) / norm)
-
