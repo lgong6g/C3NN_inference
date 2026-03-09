@@ -266,6 +266,47 @@ class C3NN_w_std(nn.Module):
         self.flag = True
         return x
 
+""" Same as C3NN_w_std but with an additional learnable compression to hparams.out_dim"""
+class C3NN_w_std_fixed_dim(nn.Module):
+    def __init__(self, hparams, absbeta=False):
+        super().__init__()
+        self.in_channels = hparams.in_channels
+        self.num_filts = hparams.num_filts
+        self.filter_size = hparams.filter_size
+        self.order = hparams.order
+        self.absbeta = absbeta
+
+        # This flag is to avoid error reporting for the batch normalization at the beginning when sbi package only inputs one cosmology
+        self.flag = False
+
+        # the model architecture with escnn
+        self.corr_conv = NonlinearConv(self.in_channels, self.num_filts, self.filter_size, self.order)
+        self.spatial_mean = Mean2d()
+        # I preserve the batch normalization layer here so that we can scale the compressed summary statistics to the same order of magnitude
+        # This may help the numerical stability of inference in the 2nd part
+        self.bn = nn.BatchNorm1d(hparams.out_dim, affine=False, eps=3.185289e-35, dtype=torch.float32) #3.185289e-35
+        self.parallel = torch.vmap(self.forward_single, in_dims=0, out_dims=0)
+        
+        # additional layer of compression
+        self.linear = nn.Linear(2*hparams.num_filts * hparams.order, hparams.out_dim)
+    
+    def forward_single(self, x):    
+        x = self.corr_conv(x)
+        x = self.spatial_mean(x)
+        return x
+    
+    def forward(self, x, chop=False):
+        x = self.parallel(x)
+        mean = torch.mean(x, 1)
+        std = torch.std(x, 1)
+        x = torch.cat((mean, std), 1)
+        x = self.linear(x)
+        if self.flag != False:
+            if chop == False:
+                x = self.bn(x)
+        self.flag = True
+        return x
+
 
 
 class C3NN_Nptonly(nn.Module):
@@ -449,10 +490,14 @@ class C3NN_hybrid(nn.Module):
     
     def forward(self, x, chop=False):
         compressed_2pt = x[:,:,-1].mean(1)[:,0,:8]
-        x = torch.mean(self.parallel(x[:,:,:-1]), 1)
+        x = self.parallel(x[:,:,:-1])
+        mean = torch.mean(x, 1)
+        std = torch.std(x, 1)
+        #x = torch.cat((mean, std), 1)
+        x = mean
         if self.flag != False:
             if chop == False:
                 x = self.bn(x)
         self.flag = True
-        x = torch.cat((x,compressed_2pt),axis=1)
+        x = torch.cat((x, compressed_2pt), 1)
         return x

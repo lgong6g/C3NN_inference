@@ -1,6 +1,6 @@
 import sys
 sys.path.append('./src')
-from load_data import load_data_wide
+from load_data import load_data_wide, load_data_full, load_data_narrow
 #from load_data import load_data_wide_noaverage
 import optuna
 import pickle
@@ -53,7 +53,10 @@ if hparams.model == 'hybrid':
     training_parameters, training_data = load_data_hybrid(hparams)
 else:
     training_parameters, training_data = load_data_wide(hparams)
-    #training_parameters, training_data = load_data_full(hparams)
+    training_parameters_narrow, training_data_narrow = load_data_narrow(hparams)
+    training_parameters = torch.cat((training_parameters,training_parameters_narrow))
+    training_data = torch.cat((training_data,training_data_narrow))
+    #training_parameters, training_data = training_parameters_narrow[50:], training_data_narrow[50:]
 if args.test:
     training_parameters, training_data = training_parameters[:10], training_data[:10]
 
@@ -152,7 +155,7 @@ if __name__ == "__main__":
         with open('Models/testing_optuna.pickle', 'wb') as f:
             pickle.dump(study, f)
     elif database == 'pickle':
-        with open('Models/optuna.pickle', 'wb') as f:
+        with open('Models/hybrid.pickle', 'wb') as f:
             pickle.dump(study, f)
         
     # Print info for best trial

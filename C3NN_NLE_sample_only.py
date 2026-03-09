@@ -73,18 +73,24 @@ prior = utils.BoxUniform(low=from_numpy(lower), high=from_numpy(upper),device=hp
 ############
 
 model_dir = f"/project/ag-weller/Kai.Lehman/C3NN_Models/"
-#with open(f"{model_dir}/nle_widenarrow_inference.pkl", "rb") as f:
-with open(f"{model_dir}/nle_widenarrow_mdn_inference.pkl", "rb") as f:
+# change
+#with open(f"{model_dir}/nle_widenarrow_inference_new_realization2.pkl", "rb") as f:
+with open(f"{model_dir}/nle_widenarrow_inference_new_realization1_5.pkl", "rb") as f:
+#with open(f"{model_dir}/nle_widenarrow_mdn_inference_new.pkl", "rb") as f:
     inference = cpk.load(f)
 
-#with open(f"{model_dir}/nle_widenarrow_density_estimator.pkl", "rb") as f:
-with open(f"{model_dir}/nle_widenarrow_mdn_density_estimator.pkl", "rb") as f:
+# change
+#with open(f"{model_dir}/nle_widenarrow_density_estimator_new_realization2.pkl", "rb") as f:
+with open(f"{model_dir}/nle_widenarrow_density_estimator_new_realization1_5.pkl", "rb") as f:
+#with open(f"{model_dir}/nle_widenarrow_mdn_density_estimator_new.pkl", "rb") as f:
     density_estimator = cpk.load(f)
 
 posterior = inference.build_posterior()
 
-#testing_summ = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ.npy')
-testing_summ = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ_mdn.npy')
+# change
+#testing_summ = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ_new.npy')
+testing_summ = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ_new_5.npy')
+#testing_summ = np.load('/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ_mdn_new.npy')
 
 
 ######
@@ -137,13 +143,16 @@ sample_c4 = np.load('/project/ag-weller/Kai.Lehman/C3NN_Models/test_chains/40fil
 c = ChainConsumer()
 
 c.add_chain(sample_c4, parameters=["$\Omega_m$", r"$\sigma_8$", r"$w_0$"], name=r'$\{c_1, \ldots, c_4\}$ ', shade=True, shade_alpha=0.7, color='green', linestyle='-', linewidth=2.0, kde=False)
-c.add_chain(samples, parameters=["$\Omega_m$", r"$\sigma_8$", r"$w_0$"], name=r'$\{c_1, ..., c_4\}$ '+'C3NN MAF compression, NLE on both grids', shade=True, shade_alpha=0.1, color='orange', linestyle='-', linewidth=2.0, kde=False)
+# change
+c.add_chain(samples, parameters=["$\Omega_m$", r"$\sigma_8$", r"$w_0$"], name=r'$\{c_1, ..., c_5\}$ '+'C3NN MAF compression, NLE on both grids', shade=True, shade_alpha=0.1, color='orange', linestyle='-', linewidth=2.0, kde=False)
 
 
 fig = c.plotter.plot(figsize=(12, 12), truth=[0.26, 0.84, -1], legend=True)
 
-#plt.savefig('Plots/C3NN_NLE_newsampling.png')
-plt.savefig('Plots/C3NN_NLE_newsampling_mdn.png')
+# change
+plt.savefig('Plots/C3NN_NLE_newsampling_new_realization1_5.png')
+#plt.savefig('Plots/C3NN_NLE_newsampling_new_realization2.png')
+#plt.savefig('Plots/C3NN_NLE_newsampling_mdn_new.png')
 
 
 print(samples.std(axis=0))

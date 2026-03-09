@@ -19,6 +19,8 @@ from sbi import utils
 from sbi.utils.get_nn_models import posterior_nn, likelihood_nn
 
 from src.load_data import load_data_wide, load_data_narrow
+from src.load_data import load_data_wide_realization1, load_data_narrow_realization1
+from src.load_data import load_data_wide_realization2, load_data_narrow_realization2
 from hyperparameters import hparams
 
 from torch import from_numpy
@@ -60,8 +62,9 @@ if torch.cuda.is_available():
     print(f"CUDA deterministic: {torch.backends.cudnn.deterministic}")
 print(f"Random seed set to: {RANDOM_SEED}")
 
-training_parameters, training_data = load_data_wide(hparams)
-training_parameters_narrow, training_data_narrow = load_data_narrow(hparams)
+# change
+training_parameters, training_data = load_data_wide_realization2(hparams)
+training_parameters_narrow, training_data_narrow = load_data_narrow_realization2(hparams)
 training_parameters = torch.cat((training_parameters,training_parameters_narrow))
 training_data = torch.cat((training_data,training_data_narrow))
 
@@ -70,17 +73,47 @@ print('creating summary')
 ##########
 # reading in VMIM trained summary network and creatings summaries for the simulations
 ########
+'''
+This worked before, however, I now want to train NLE on a second realization instead of the same first one
 
-#with open(f'/project/ag-weller/Kai.Lehman/C3NN_Models/order_4_filters_40_size_37_lr_1.00e-03_features_32_blocks_2_transforms_7_batchsize_16_widenarrow_density_estimator.pkl', 'rb') as f:
-with open(f'/project/ag-weller/Kai.Lehman/C3NN_Models/order_4_filters_40_size_37_lr_1.00e-03_features_32_blocks_2_transforms_7_batchsize_16_widenarrow_mdn_density_estimator.pkl', 'rb') as f:
+with open(f'/project/ag-weller/Kai.Lehman/C3NN_Models/order_4_filters_40_size_37_lr_1.00e-03_features_32_blocks_2_transforms_7_batchsize_16_widenarrow_inference.pkl', 'rb') as f:
+#with open(f'/project/ag-weller/Kai.Lehman/C3NN_Models/order_4_filters_40_size_37_lr_1.00e-03_features_32_blocks_2_transforms_7_batchsize_16_widenarrow_mdn_inference.pkl', 'rb') as f:
+    inference = cpk.load(f)
+
+train_loader, val_loader = inference.get_dataloaders(
+            training_batch_size=1,
+            resume_training=True,
+            dataloader_kwargs={"drop_last": False},
+        )
+'''
+
+# change
+with open(f'/project/ag-weller/Kai.Lehman/C3NN_Models/order_4_filters_40_size_37_lr_1.00e-03_features_32_blocks_2_transforms_7_batchsize_16_widenarrow_density_estimator.pkl', 'rb') as f:
+#with open(f'/project/ag-weller/Kai.Lehman/C3NN_Models/order_4_filters_40_size_37_lr_1.00e-03_features_32_blocks_2_transforms_7_batchsize_16_widenarrow_mdn_density_estimator.pkl', 'rb') as f:
     density_estimator = cpk.load(f)
 
 train_dataset = TensorDataset(training_parameters, training_data)
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=False,drop_last=False)
+train_loader = DataLoader(train_dataset, batch_size=1, shuffle=False,drop_last=False)
 
+#summ = np.empty((2250,2*4*40))
+#training_parameters = np.empty((2250,3))
+
+# change
+#summ = np.empty((2500,2*5*30))
 summ = np.empty((2500,2*4*40))
+training_parameters = np.empty((2500,3))
+
+'''
 for i, (param, data) in enumerate(train_loader):
-    summ[4*i:4*(i+1)] = density_estimator._embedding_net(data).detach().cpu()
+    #summ[4*i:4*(i+1)] = density_estimator._embedding_net(data).detach().cpu()
+    summ[4*i:4*(i+1)] = density_estimator.embed(data).detach().cpu()
+'''
+
+density_estimator._embedding_net.eval()
+
+for i, (param, data) in enumerate(train_loader):
+    summ[i] = density_estimator._embedding_net(data).detach().cpu()
+    training_parameters[i] = param.cpu()
 
 
 #############
@@ -96,8 +129,9 @@ testing_summ = density_estimator._embedding_net(testing_data.unsqueeze(0)).detac
 print(testing_summ.shape)
 print(testing_summ[0])
 
-#np.save("/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ.npy",testing_summ)
-np.save("/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ_mdn.npy",testing_summ)
+# change
+np.save("/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ_new.npy",testing_summ)
+#np.save("/project/ag-weller/Kai.Lehman/C3NN_data/fiducial_summ_mdn_new.npy",testing_summ)
 
 print('trianing NLE')
 
@@ -106,8 +140,12 @@ print('trianing NLE')
 # training NLE with the summary and saving NLE network
 ###########
 
-del train_dataset
+#del train_dataset
+#del density_estimator
+del train_loader
+#del val_loader
 del density_estimator
+#del inference
 torch.cuda.empty_cache()
 
 lower = np.array([0.1, 0.4, -2.0])
@@ -126,6 +164,7 @@ density_estimator = likelihood_nn(
 inference = SNLE(prior=prior, show_progress_bars=True, density_estimator=density_estimator, device=device)
 
 summ = torch.tensor(summ, dtype=torch.float32)
+training_parameters = torch.tensor(training_parameters, dtype=torch.float32)
 
 
 
@@ -139,11 +178,13 @@ density_estimator = inference.append_simulations(training_parameters, summ).trai
 
 #likelihood_estimator = inference.get_density_estimator()
 model_dir = f"/project/ag-weller/Kai.Lehman/C3NN_Models/"
-#with open(f"{model_dir}/nle_widenarrow_inference.pkl", "wb") as handle:
-with open(f"{model_dir}/nle_widenarrow_mdn_inference.pkl", "wb") as handle:
+# change
+with open(f"{model_dir}/nle_widenarrow_inference_new_realization2.pkl", "wb") as handle:
+#with open(f"{model_dir}/nle_widenarrow_mdn_inference_new.pkl", "wb") as handle:
     cpk.dump(inference, handle)
-#with open(f"{model_dir}/nle_widenarrow_density_estimator.pkl", "wb") as handle:
-with open(f"{model_dir}/nle_widenarrow_mdn_density_estimator.pkl", "wb") as handle:
+# change
+with open(f"{model_dir}/nle_widenarrow_density_estimator_new_realization2.pkl", "wb") as handle:
+#with open(f"{model_dir}/nle_widenarrow_mdn_density_estimator_new.pkl", "wb") as handle:
     cpk.dump(density_estimator, handle)
 
 posterior = inference.build_posterior()
