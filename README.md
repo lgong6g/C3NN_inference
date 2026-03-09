@@ -20,11 +20,7 @@ The model has two conceptual parts:
 
 ## Interpretability
 
-C3NN interpretability mainly comes from:
-
-1. The output moment of order `N` can be linked analytically to an `N`-point correlation function.
-2. The contribution of different orders can be compared explicitly in downstream tasks.
-3. Learned filter weights can be inspected to understand which configurations drive performance.
+The interpretability of C3NN mainly exists in the following three aspects: (i) the output moment of a specific order N can be mathematically expressed in terms of the correlation function at the same order. This is unlike the often hard-to-interpret summary statistics extracted by conventional CNN models, (ii) through a regularization path analysis (Efron et al. 2004; Tang et al. 2014), which is integrated into the classifier part of our model, we can have a quantitative understanding of the relative importance of the different order moments in contributing to the model’s classification power. Moreover, (iii) we can investigate the trained filter weights by connecting individual pixels to form the configuration of any given NPCF. The filter weights for a given NPCF configuration directly allow us to rank different correlation function configurations within a given moment.
 
 ## Citation Request
 
