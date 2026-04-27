@@ -4,24 +4,31 @@
 class hyperparameters():
     """Container for C3NN embedding + flow training hyperparameters."""
 
-    def __init__(self, learning_rate, flow_hidden_features, num_blocks, flow_num_transforms, flow_training_batch_size,
-                 in_channels, num_filts, filter_size, order, out_dim, save=True, device='cuda', model='w_std'):
+    def __init__(self, learning_rate, flow_hidden_features, num_blocks, flow_num_transforms, flow_training_batch_size, num_bins,
+                 in_channels, num_filts, filter_size, order, out_dim, c3nn_batch_size=24, save=True, device='cuda', model='w_std'):
         """Initialize hyperparameters for C3NN embedding and density estimator."""
 
         # Learning rate
         self.learning_rate = learning_rate
-        # flow hparams        
+        # flow hparams
         self.flow_hidden_features = flow_hidden_features
         self.num_blocks = num_blocks
         self.flow_num_transforms = flow_num_transforms
         self.flow_training_batch_size = flow_training_batch_size
+        self.num_bins = num_bins
         # C3NN hparams
         self.in_channels = in_channels
         self.num_filts = num_filts
         self.filter_size = filter_size
         self.order = order
         self.out_dim = out_dim
-
+        # Stage 1 batch size: separate from flow_training_batch_size because each
+        # cosmology contains n_maps × 512 × 512 maps that are flattened inside
+        # NonlinearConv, making GPU memory grow as B × n_maps × H × W — much
+        # faster than the 20-d summary vectors used in Stage 2.
+        # Empirical limit on a 40 GiB A100: ~1.26 GiB/cosmology → max ~30.
+        # c3nn_batch_size=24 leaves ~8 GiB headroom as a safety buffer.
+        self.c3nn_batch_size = c3nn_batch_size
 
         #whether to save model
         self.save=save
@@ -126,13 +133,15 @@ hparams = hyperparameters(learning_rate = 1e-3,  #1.4201803439538936e-4, # Learn
                           flow_hidden_features = 64,
                           num_blocks = 5,
                           flow_num_transforms = 5,
-                          flow_training_batch_size = 16,
+                          flow_training_batch_size = 32,
+                          num_bins = 20,
                           in_channels = 4, # not optimzed
                           num_filts = 40, # The number of filters to learn in our model
                           filter_size = 37, # The spatial length of the filters
-                          order = 4, # The highest order of correlation measured, not optimized
+                          order = 6, # The highest order of correlation measured, not optimized
                           out_dim = 20, # The output dimension from the final FC layer
-                          save = True,  
+                          c3nn_batch_size = 24, # cosmologies per GPU for Stage 1 C3NN training
+                          save = True,
                           device = 'cuda',
                           model = 'fixed_dim'  # default, w_std or hybrid
                           )
