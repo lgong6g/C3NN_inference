@@ -65,15 +65,15 @@ class NonlinearConv(nn.Module):
         # C_0 is defined to be one everywhere
         corrs = [torch.ones_like(conv_powers[0])]
 
-        # Compute each order of C_n recursively.
-        # addcmul_ fuses sign * P_k * C_{n-k-1} into a single kernel,
-        # eliminating the two intermediate tensors created by the original
-        # (-1)**k * conv_powers[k] * corrs[n-k-1] expression.
+        # Compute each order of C_n recursively using in-place accumulation.
+        # addcmul_ is safe here: Cn is freshly created with zeros_like each
+        # iteration and is never used as an input to the same accumulation step.
+        # Avoids O(n²/2) intermediate ~1 GB tensors that the out-of-place
+        # torch.addcmul version would allocate and immediately discard.
         for n in range(1, self.order + 1):
             Cn = torch.zeros_like(conv_powers[0])
             for k in range(n):
-                #Cn.addcmul_(conv_powers[k], corrs[n - k - 1], value=self._signs[k])
-                Cn = torch.addcmul(Cn, conv_powers[k], corrs[n - k - 1], value=self._signs[k])
+                Cn.addcmul_(conv_powers[k], corrs[n - k - 1], value=self._signs[k])
             Cn.div_(n)
             corrs.append(Cn)
 

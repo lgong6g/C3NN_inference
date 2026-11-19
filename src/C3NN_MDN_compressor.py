@@ -26,7 +26,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
 
 from C3NN_extensions_modified import NonlinearConv, Mean2d
 
@@ -86,7 +85,7 @@ class C3NN_hybrid_highorder(nn.Module):
         e.g. for order=4, num_filts=40, n_2pcf=8 → [B, 88]
     """
 
-    def __init__(self, hparams, n_2pcf: int = 8):
+    def __init__(self, hparams, n_2pcf: int = 17):
         """
         Args:
             hparams:  Hyperparameter container.  Uses in_channels (4),
@@ -120,7 +119,7 @@ class C3NN_hybrid_highorder(nn.Module):
         # Replaced by nn.Identity() inside C3NN_MDN_Compressor to avoid
         # double-normalisation (we apply our own BN after the FC layer).
         self.bn = nn.BatchNorm1d(
-            self.highorder_dim, affine=False, eps=3.185289e-35, dtype=torch.float32
+            self.highorder_dim, affine=False, eps=1e-5, dtype=torch.float32
         )
 
         # vmap over the batch dimension for efficient per-realization encoding
@@ -189,19 +188,28 @@ class C3NN_hybrid_highorder(nn.Module):
         maps = x[:, :, :-1]                  # [B, n_maps, 4, H, W]
         B, n_maps, C, H, W = maps.shape
 
-        # Process one cosmology at a time through the C3NN using gradient
-        # checkpointing.  During the backward pass only one cosmology's
-        # NonlinearConv intermediates (~0.9 GiB) need to be alive at a time,
-        # keeping peak backward memory independent of B.  Without this, the
-        # backward holds all 6 conv_powers + 7 corrs tensors for the entire
-        # flat batch [B*n_maps, 40, 512, 512] simultaneously (~26 × B × 0.06 GiB).
-        summaries = torch.stack(
-            [
-                checkpoint(self._forward_single, maps[b].contiguous(), use_reentrant=False)
-                for b in range(B)
-            ],
-            dim=0,
-        )  # [B, n_maps, order*num_filts]
+        # Flatten B and n_maps into a single batch dimension so NonlinearConv
+        # runs ONE conv2d call on [B*n_maps, 4, H, W] instead of B sequential
+        # calls on [n_maps, 4, H, W].  This removes the Python loop overhead
+        # and lets the GPU process all cosmologies in parallel.
+        #
+        # Memory: with c3nn_batch_size=8 and n_maps=3, the flat batch is
+        # [24, 4, 512, 512].  Peak backward intermediates = 13 × [24, 40, 512, 512]
+        # ≈ 13.1 GB, well within the 40 GB A100 budget.  Gradient checkpointing
+        # is therefore not needed and its sequential serialisation is removed.
+        maps_flat = maps.reshape(B * n_maps, C, H, W)           # [B*n_maps, C, H, W]
+        out_flat  = self.corr_conv(maps_flat)                    # [B*n_maps, order*num_filts, H, W]
+        out       = out_flat.reshape(B, n_maps, -1, H, W)        # [B, n_maps, order*num_filts, H, W]
+
+        if self.valid_masks is not None:
+            # Iterate over maps (n_maps iterations, all B cosmologies in parallel).
+            # This replaces the old B*n_maps-iteration pattern from _forward_single.
+            summaries = torch.stack(
+                [out[:, m, :, self.valid_masks[m]].mean(dim=-1) for m in range(n_maps)],
+                dim=1,
+            )  # [B, n_maps, order*num_filts]
+        else:
+            summaries = out.mean(dim=(-2, -1))  # [B, n_maps, order*num_filts]
         
         # Average correlator features over realisations
         mean = summaries.mean(dim=1)          # [B, order*num_filts]
@@ -233,7 +241,7 @@ class C3NN_MDN_Compressor(nn.Module):
     compress() returns T(x) — this is the fixed input to Stage 2 NLE once
     all Stage-1 weights are frozen.
     """
-
+    """
     def __init__(
         self,
         backbone: nn.Module,
@@ -243,13 +251,25 @@ class C3NN_MDN_Compressor(nn.Module):
         n_components: int = 8,
         activation: nn.Module = None,
     ):
+    """
+    def __init__(
+      self,
+      backbone: nn.Module,
+      raw_dim: int,          # now 
+      compressed_dim: int,
+      n_params: int,
+      n_components: int = 1,
+      activation: nn.Module = None,
+      n_2pcf: int = 17,     
+    ):
         """
         Args:
             backbone:        C3NN_hybrid_highorder (or compatible) module mapping
                              x [B, n_maps, 5, H, W] -> [B, raw_dim].
                              Its internal BatchNorm is replaced by Identity.
             raw_dim:         Output dimensionality of the backbone
-                             (= (order-2)*num_filts + n_2pcf, e.g. 88).
+                             (= (order-2)*num_filts + n_2pcf).
+                             NEW: (= (order-2)*num_filts) only. The n_2pcf features are appended                              after fc_compress, not compressed.
             compressed_dim:  Target summary dimension after FC compression
                              (= hparams.out_dim, e.g. 20).
             n_params:        Dimensionality of the cosmological parameter space
@@ -257,6 +277,7 @@ class C3NN_MDN_Compressor(nn.Module):
             n_components:    Number of Gaussian mixture components K.
             activation:      Nonlinear activation applied after fc_compress.
                              Defaults to nn.GELU() when None.
+            n_2pcf:          NEW: compressed 2PCF dimension, appended after fc_compress
         """
         super().__init__()
         self.n_components  = n_components
@@ -271,19 +292,23 @@ class C3NN_MDN_Compressor(nn.Module):
         self.fc_compress = nn.Linear(raw_dim, compressed_dim)
         self.activation  = activation if activation is not None else nn.GELU()
         self.bn_compress = nn.BatchNorm1d(
-            compressed_dim, affine=False, eps=3.185289e-35, dtype=torch.float32
+            compressed_dim, affine=False, eps=1e-5, dtype=torch.float32
         )
 
         # MDN head: pi logits + mu + log_sigma for K components over R^n_params
         mdn_out_dim = n_components * (1 + 2 * n_params)
-        self.mdn_head = nn.Linear(compressed_dim, mdn_out_dim)
+        # self.mdn_head = nn.Linear(compressed_dim, mdn_out_dim)
+        self.n_2pcf   = n_2pcf
+        self.mdn_head = nn.Linear(compressed_dim + n_2pcf, mdn_out_dim)
 
         # Deferred BN: skip on the very first call (batch size may be 1 in sbi)
         self._bn_ready = False
 
     # ------------------------------------------------------------------
+    
     def compress(self, x: torch.Tensor) -> torch.Tensor:
-        """Return compressed summary T(x) without MDN output.
+        """
+        Return compressed summary T(x) without MDN output.
 
         Called during Stage 2 to extract fixed summaries from the frozen
         Stage-1 compressor for all training simulations.
@@ -293,6 +318,13 @@ class C3NN_MDN_Compressor(nn.Module):
 
         Returns:
             Tensor [B, compressed_dim]
+        NEW: 
+        Returns:
+            Tensor [B, compressed_dim + n_2pcf]
+            First compressed_dim entries: FC-compressed high-order summary.
+            Last n_2pcf entries: raw compressed 2PCF, passed through unchanged.
+        """
+        
         """
         features   = self.backbone(x)                       # [B, raw_dim]
         compressed = self.activation(self.fc_compress(features))  # [B, compressed_dim]
@@ -300,7 +332,18 @@ class C3NN_MDN_Compressor(nn.Module):
             compressed = self.bn_compress(compressed)
         self._bn_ready = True
         return compressed
-
+        """
+        
+        features   = self.backbone(x)                              # [B, highorder_dim + n_2pcf]
+        #features = self.backbone.forward(x)
+        highorder  = features[:, :self.fc_compress.in_features]    # [B, highorder_dim]
+        twopcf     = features[:, self.fc_compress.in_features:]    # [B, n_2pcf]
+        compressed = self.activation(self.fc_compress(highorder))  # [B, compressed_dim]
+        if self._bn_ready:
+            compressed = self.bn_compress(compressed)
+        self._bn_ready = True
+        return torch.cat([compressed, twopcf], dim=1)              # [B, compressed_dim + n_2pcf]
+        
     # ------------------------------------------------------------------
     def forward(self, x: torch.Tensor):
         """Full forward: map batch -> MDN parameters over theta.
@@ -351,6 +394,17 @@ def mdn_nll_loss(
     Returns:
         Scalar mean NLL over the batch.
     """
+    # Promote to float32 so that exp/division/logsumexp are not squeezed
+    # into float16's narrow exponent range under autocast.
+    pi_logits = pi_logits.float()
+    mu        = mu.float()
+    log_sigma = log_sigma.float()
+    theta     = theta.float()
+
+    # Clamp log_sigma to prevent sigma from underflowing to 0 (MDN collapse).
+    # sigma in [exp(-7), exp(7)] ≈ [9e-4, 1097] is ample for normalised params.
+    log_sigma = log_sigma.clamp(min=-7.0, max=7.0)
+
     log_pi = F.log_softmax(pi_logits, dim=-1)     # [B, K]
     sigma  = torch.exp(log_sigma)                 # [B, K, D]
 

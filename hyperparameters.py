@@ -130,20 +130,20 @@ class hyperparameters_cnn:
 #--- HYPERPARAMETER CHOICES ---#
 
 hparams = hyperparameters(learning_rate = 1e-3,  #1.4201803439538936e-4, # Learning rate
-                          flow_hidden_features = 64,
-                          num_blocks = 5,
+                          flow_hidden_features = 256,
+                          num_blocks = 3,
                           flow_num_transforms = 5,
-                          flow_training_batch_size = 32,
+                          flow_training_batch_size = 256,
                           num_bins = 20,
                           in_channels = 4, # not optimzed
-                          num_filts = 40, # The number of filters to learn in our model
-                          filter_size = 37, # The spatial length of the filters
-                          order = 6, # The highest order of correlation measured, not optimized
-                          out_dim = 20, # The output dimension from the final FC layer
-                          c3nn_batch_size = 24, # cosmologies per GPU for Stage 1 C3NN training
+                          num_filts = 20, # The number of filters to learn in our model
+                          filter_size = 15, # The spatial length of the filters
+                          order = 4, # The highest order of correlation measured, not optimized
+                          out_dim = 10, # The output dimension from the final FC layer
+                          c3nn_batch_size = 16, # 16 is a safe value used previously for GPU RAM
                           save = True,
                           device = 'cuda',
-                          model = 'fixed_dim'  # default, w_std or hybrid
+                          model = 'hybrid'  # default, w_std or hybrid
                           )
 
 
